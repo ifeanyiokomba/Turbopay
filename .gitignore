@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+turbopay-complete-latest/node_modules/
+turbopay-complete-latest/.next/
+turbopay-complete-latest/dist/
+research/
+*.txt
+*.pdf
+audit*.md
+plan*.md
+PROVIDER_*.md
+UNIFIED_*.md
+connection\ string.txt
+.turbo
+coverage/

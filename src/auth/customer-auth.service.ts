@@ -1,0 +1,394 @@
+// TurboPay Customer Authentication Service
+// Handles customer registration, KYC verification, login, and session management
+// Separate from admin auth — different interface, different capabilities
+
+import crypto from 'crypto';
+import { sha256Hash } from '../utils/crypto';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export type KYCTier = 'tier_1' | 'tier_2' | 'tier_3';
+
+export interface CustomerUser {
+  id: string;
+  email: string;
+  phone?: string;
+  password_hash: string;
+  salt: string;
+  first_name: string;
+  last_name: string;
+  kyc_tier: KYCTier;
+  bvn_verified: boolean;
+  nin_verified: boolean;
+  bvn?: string;
+  nin?: string;
+  is_active: boolean;
+  is_email_verified: boolean;
+  is_phone_verified: boolean;
+  last_login: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  metadata?: Record<string, any>;
+  password_reset_token: string | null;
+  password_reset_expires: Date | null;
+}
+
+export interface CustomerRegistrationRequest {
+  email: string;
+  phone?: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+}
+
+export interface CustomerLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface CustomerLoginResponse {
+  success: boolean;
+  token?: string;
+  user?: Omit<CustomerUser, 'password_hash' | 'salt' | 'password_reset_token' | 'password_reset_expires'>;
+  error?: string;
+}
+
+export interface KYCVerificationRequest {
+  user_id: string;
+  bvn?: string;
+  nin?: string;
+  verification_method: 'monnify' | 'flutterwave';
+}
+
+export interface KYCVerificationResponse {
+  success: boolean;
+  tier: KYCTier;
+  verified_fields: string[];
+  error?: string;
+}
+
+// =============================================================================
+// CUSTOMER AUTH SERVICE
+// =============================================================================
+
+export class CustomerAuthService {
+  private users: Map<string, CustomerUser> = new Map();
+  private sessions: Map<string, { user_id: string; expires_at: Date }> = new Map();
+  private readonly SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
+  private readonly PASSWORD_RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
+
+  // ===========================================================================
+  // REGISTRATION
+  // ===========================================================================
+
+  async register(request: CustomerRegistrationRequest): Promise<{ success: boolean; user?: Omit<CustomerUser, 'password_hash' | 'salt' | 'password_reset_token' | 'password_reset_expires'>; error?: string }> {
+    // Check if user already exists
+    const existingUser = this.findUserByEmail(request.email);
+    if (existingUser) {
+      return { success: false, error: 'Email already registered' };
+    }
+
+    if (request.phone) {
+      const existingPhone = this.findUserByPhone(request.phone);
+      if (existingPhone) {
+        return { success: false, error: 'Phone number already registered' };
+      }
+    }
+
+    // Generate salt and hash password
+    const salt = crypto.randomBytes(16).toString('hex');
+    const password_hash = this.hashPassword(request.password, salt);
+
+    const user: CustomerUser = {
+      id: this.generateId(),
+      email: request.email.toLowerCase(),
+      phone: request.phone,
+      password_hash,
+      salt,
+      first_name: request.first_name,
+      last_name: request.last_name,
+      kyc_tier: 'tier_1',
+      bvn_verified: false,
+      nin_verified: false,
+      is_active: true,
+      is_email_verified: true,
+      is_phone_verified: !!request.phone,
+      last_login: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+      password_reset_token: null,
+      password_reset_expires: null
+    };
+
+    this.users.set(user.id, user);
+    return { success: true, user: this.sanitizeUser(user) };
+  }
+
+  // ===========================================================================
+  // LOGIN
+  // ===========================================================================
+
+  async login(request: CustomerLoginRequest): Promise<CustomerLoginResponse> {
+    const user = this.findUserByEmail(request.email);
+
+    if (!user) {
+      return { success: false, error: 'Invalid email or password' };
+    }
+
+    if (!user.is_active) {
+      return { success: false, error: 'Account is disabled' };
+    }
+
+    const passwordValid = this.verifyPassword(request.password, user.salt, user.password_hash);
+    if (!passwordValid) {
+      return { success: false, error: 'Invalid email or password' };
+    }
+
+    // Update last login
+    user.last_login = new Date();
+    user.updated_at = new Date();
+    this.users.set(user.id, user);
+
+    // Generate session token
+    const token = this.generateToken(user);
+
+    return {
+      success: true,
+      token,
+      user: this.sanitizeUser(user)
+    };
+  }
+
+  async logout(token: string): Promise<void> {
+    this.sessions.delete(token);
+  }
+
+  validateToken(token: string): CustomerUser | null {
+    const session = this.sessions.get(token);
+    if (!session) return null;
+
+    if (session.expires_at < new Date()) {
+      this.sessions.delete(token);
+      return null;
+    }
+
+    return this.findUserById(session.user_id) || null;
+  }
+
+  // ===========================================================================
+  // KYC VERIFICATION
+  // ===========================================================================
+
+  async verifyKYC(request: KYCVerificationRequest): Promise<KYCVerificationResponse> {
+    const user = this.findUserById(request.user_id);
+    if (!user) {
+      return { success: false, tier: 'tier_1', verified_fields: [], error: 'User not found' };
+    }
+
+    const verifiedFields: string[] = [];
+
+    // Verify BVN if provided
+    if (request.bvn) {
+      const bvnValid = await this.verifyBVN(request.bvn, request.verification_method);
+      if (bvnValid) {
+        user.bvn = request.bvn;
+        user.bvn_verified = true;
+        verifiedFields.push('bvn');
+      }
+    }
+
+    // Verify NIN if provided
+    if (request.nin) {
+      const ninValid = await this.verifyNIN(request.nin, request.verification_method);
+      if (ninValid) {
+        user.nin = request.nin;
+        user.nin_verified = true;
+        verifiedFields.push('nin');
+      }
+    }
+
+    // Determine KYC tier
+    let tier: KYCTier = 'tier_1';
+    if (user.bvn_verified && user.nin_verified) {
+      tier = 'tier_3';
+    } else if (user.bvn_verified || user.nin_verified) {
+      tier = 'tier_2';
+    }
+
+    user.kyc_tier = tier;
+    user.updated_at = new Date();
+    this.users.set(user.id, user);
+
+    return {
+      success: true,
+      tier,
+      verified_fields: verifiedFields
+    };
+  }
+
+  private async verifyBVN(bvn: string, method: 'monnify' | 'flutterwave'): Promise<boolean> {
+    // In production, call Monnify or Flutterwave verification API
+    // Monnify: POST /api/v1/verification/bvn
+    // Flutterwave: POST /v3/bvn/verify
+    console.log(`[CustomerAuth] Verifying BVN ${bvn} via ${method}`);
+    return bvn.length === 11; // Placeholder validation
+  }
+
+  private async verifyNIN(nin: string, method: 'monnify' | 'flutterwave'): Promise<boolean> {
+    // In production, call Monnify or Flutterwave verification API
+    // Monnify: POST /api/v1/verification/nin
+    console.log(`[CustomerAuth] Verifying NIN ${nin} via ${method}`);
+    return nin.length === 11; // Placeholder validation
+  }
+
+  // ===========================================================================
+  // PASSWORD MANAGEMENT
+  // ===========================================================================
+
+  async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    const user = this.findUserByEmail(email);
+    if (!user) {
+      return { success: true, message: 'If an account exists with this email, you will receive a password reset link.' };
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + this.PASSWORD_RESET_EXPIRY);
+
+    user.password_reset_token = resetToken;
+    user.password_reset_expires = resetExpires;
+    user.updated_at = new Date();
+    this.users.set(user.id, user);
+
+    console.log(`[CustomerAuth] Password reset token for ${email}: ${resetToken}`);
+
+    return {
+      success: true,
+      message: 'If an account exists with this email, you will receive a password reset link.'
+    };
+  }
+
+  async confirmPasswordReset(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    let targetUser: CustomerUser | null = null;
+    for (const user of this.users.values()) {
+      if (user.password_reset_token === token) {
+        targetUser = user;
+        break;
+      }
+    }
+
+    if (!targetUser) {
+      return { success: false, message: 'Invalid or expired reset token' };
+    }
+
+    if (!targetUser.password_reset_expires || targetUser.password_reset_expires < new Date()) {
+      return { success: false, message: 'Reset token has expired' };
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    targetUser.password_hash = this.hashPassword(newPassword, salt);
+    targetUser.salt = salt;
+    targetUser.password_reset_token = null;
+    targetUser.password_reset_expires = null;
+    targetUser.updated_at = new Date();
+    this.users.set(targetUser.id, targetUser);
+
+    return { success: true, message: 'Password has been reset successfully' };
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const user = this.findUserById(userId);
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    const valid = this.verifyPassword(currentPassword, user.salt, user.password_hash);
+    if (!valid) {
+      return { success: false, message: 'Current password is incorrect' };
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    user.password_hash = this.hashPassword(newPassword, salt);
+    user.salt = salt;
+    user.updated_at = new Date();
+    this.users.set(user.id, user);
+
+    return { success: true, message: 'Password changed successfully' };
+  }
+
+  // ===========================================================================
+  // USER MANAGEMENT
+  // ===========================================================================
+
+  getCustomer(userId: string): Omit<CustomerUser, 'password_hash' | 'salt' | 'password_reset_token' | 'password_reset_expires'> | null {
+    const user = this.findUserById(userId);
+    return user ? this.sanitizeUser(user) : null;
+  }
+
+  updateCustomer(userId: string, updates: Partial<CustomerUser>): CustomerUser | null {
+    const user = this.users.get(userId);
+    if (!user) return null;
+
+    const updatedUser = { ...user, ...updates, updated_at: new Date() };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
+
+  private findUserByEmail(email: string): CustomerUser | undefined {
+    for (const user of this.users.values()) {
+      if (user.email === email.toLowerCase()) {
+        return user;
+      }
+    }
+    return undefined;
+  }
+
+  private findUserByPhone(phone: string): CustomerUser | undefined {
+    for (const user of this.users.values()) {
+      if (user.phone === phone) {
+        return user;
+      }
+    }
+    return undefined;
+  }
+
+  private findUserById(id: string): CustomerUser | undefined {
+    return this.users.get(id);
+  }
+
+  private hashPassword(password: string, salt: string): string {
+    return sha256Hash(password + salt);
+  }
+
+  private verifyPassword(password: string, salt: string, hash: string): boolean {
+    return this.hashPassword(password, salt) === hash;
+  }
+
+  private generateId(): string {
+    return crypto.randomBytes(16).toString('hex');
+  }
+
+  private generateToken(user: CustomerUser): string {
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + this.SESSION_EXPIRY);
+
+    this.sessions.set(sessionId, {
+      user_id: user.id,
+      expires_at: expiresAt
+    });
+
+    return sessionId;
+  }
+
+  private sanitizeUser(user: CustomerUser): Omit<CustomerUser, 'password_hash' | 'salt' | 'password_reset_token' | 'password_reset_expires'> {
+    const { password_hash, salt, password_reset_token, password_reset_expires, ...sanitized } = user;
+    return sanitized;
+  }
+}
+
+export default CustomerAuthService;
