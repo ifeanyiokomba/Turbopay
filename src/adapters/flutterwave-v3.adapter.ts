@@ -440,7 +440,10 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
 
   validateWebhook(payload: any, signature: string): boolean {
     // V3 uses verif-hash header
-    if (!this.flwConfig.webhook_secret) return true;
+    if (!this.flwConfig.webhook_secret) {
+      console.error('[FlutterwaveV3] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
     return signature === this.flwConfig.webhook_secret;
   }
 

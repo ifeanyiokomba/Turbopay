@@ -570,7 +570,10 @@ export class RemitaAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    if (!this.remitaConfig.webhook_secret) return true;
+    if (!this.remitaConfig.webhook_secret) {
+      console.error('[Remita] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
     const rawBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
     return validateRemitaSignature(rawBody, signature, this.remitaConfig.webhook_secret);
   }

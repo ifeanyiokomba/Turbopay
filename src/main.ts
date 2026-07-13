@@ -21,6 +21,7 @@ import { AnalyticsDashboard } from './admin/dashboard/analytics-dashboard';
 import { AuditLogService } from './admin/dashboard/audit-log';
 import { MarkupConfigService } from './admin/dashboard/markup-config';
 import { TurboPayRoutes } from './api/routes';
+import { PersistenceManager } from './utils/persistence';
 
 // =============================================================================
 // TYPES
@@ -102,6 +103,17 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   const customerAuth = new CustomerAuthService();
 
   console.log('[TurboPay] Auth services initialized');
+
+  // ===========================================================================
+  // 2b. PERSISTENCE
+  // ===========================================================================
+
+  const persistence = new PersistenceManager(process.env.DATA_DIR || './data');
+  adminAuth.registerPersistence(persistence);
+  customerAuth.registerPersistence(persistence);
+  ledger.registerPersistence(persistence);
+
+  console.log('[TurboPay] Persistence initialized');
 
   // ===========================================================================
   // 3. DASHBOARD SERVICES
@@ -347,12 +359,14 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     });
 
     console.log(`[TurboPay] ✓ Running on ${config.host}:${config.port} (${config.environment})`);
-    console.log(`[TurboPay] ✓ Admin login: Admin@okomba.com / Admin@123456`);
     console.log(`[TurboPay] ✓ API base: http://${config.host}:${config.port}/api/v1`);
   }
 
   async function stop(): Promise<void> {
     console.log('[TurboPay] Stopping...');
+
+    // Flush persistence before shutdown
+    persistence.stop();
 
     // Stop health monitoring
     healthDashboard.stopPeriodicHealthChecks();

@@ -1,5 +1,5 @@
 // TurboPay Server Entry Point
-// HTTP server that serves the API routes
+// HTTP/HTTPS server that serves the API routes
 // This is the file you run to start TurboPay
 
 import { createTurboPay, TurboPayConfig } from './main';
@@ -72,21 +72,66 @@ const config: TurboPayConfig = {
 };
 
 // =============================================================================
-// SIMPLE HTTP SERVER
+// SERVER
 // =============================================================================
 
 function createServer(turbopay: ReturnType<typeof createTurboPay>) {
   const http = require('http');
+  const https = require('https');
+  const fs = require('fs');
   const url = require('url');
 
-  const server = http.createServer(async (req: any, res: any) => {
+  // Rate limiting state
+  const rateLimits = new Map<string, { count: number; resetAt: number }>();
+  const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '100');
+  const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000');
+  const AUTH_RATE_LIMIT_MAX = parseInt(process.env.AUTH_RATE_LIMIT_MAX || '10');
+
+  function checkRateLimit(key: string, max: number): { allowed: boolean; remaining: number; resetAt: number } {
+    const now = Date.now();
+    const record = rateLimits.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    if (now > record.resetAt) {
+      record.count = 0;
+      record.resetAt = now + RATE_LIMIT_WINDOW_MS;
+    }
+    record.count++;
+    rateLimits.set(key, record);
+    return {
+      allowed: record.count <= max,
+      remaining: Math.max(0, max - record.count),
+      resetAt: record.resetAt
+    };
+  }
+
+  // Request handler — shared by HTTP and HTTPS
+  async function handleRequest(req: any, res: any): Promise<void> {
     const parsedUrl = url.parse(req.url, true);
     const path = parsedUrl.pathname;
     const method = req.method;
     const query = parsedUrl.query;
 
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // Rate limiting — per IP
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const isAuthRoute = path.startsWith('/api/v1/auth/');
+    const rateLimitMax = isAuthRoute ? AUTH_RATE_LIMIT_MAX : RATE_LIMIT_MAX;
+    const rl = checkRateLimit(clientIp, rateLimitMax);
+    res.setHeader('X-RateLimit-Limit', rateLimitMax.toString());
+    res.setHeader('X-RateLimit-Remaining', rl.remaining.toString());
+    res.setHeader('X-RateLimit-Reset', Math.ceil(rl.resetAt / 1000).toString());
+    if (!rl.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Rate limit exceeded', retry_after: Math.ceil((rl.resetAt - Date.now()) / 1000) }));
+      return;
+    }
+
+    // CORS headers — restrict to configured origins
+    const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else if (allowedOrigins.length === 0 && config.environment === 'sandbox') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
 
@@ -97,10 +142,24 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
       return;
     }
 
-    // Parse body
+    // Request body size limit (1MB)
+    const MAX_BODY_SIZE = 1024 * 1024;
     let body = '';
-    req.on('data', (chunk: any) => { body += chunk; });
+    let bodyTooLarge = false;
+    req.on('data', (chunk: any) => {
+      body += chunk;
+      if (body.length > MAX_BODY_SIZE) {
+        bodyTooLarge = true;
+        req.destroy();
+      }
+    });
     req.on('end', async () => {
+      if (bodyTooLarge) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request body too large', max_bytes: MAX_BODY_SIZE }));
+        return;
+      }
+
       try {
         // Parse JSON body
         let parsedBody = null;
@@ -164,6 +223,21 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
               request.params[name] = match[index + 1];
             });
 
+            // Validate required body fields for POST/PUT routes
+            if (route.requiredBodyFields && (method === 'POST' || method === 'PUT')) {
+              if (!parsedBody || typeof parsedBody !== 'object') {
+                response.status(400).json({ error: 'Request body is required' });
+                matched = true;
+                break;
+              }
+              const missing = route.requiredBodyFields.filter((f: string) => parsedBody[f] === undefined);
+              if (missing.length > 0) {
+                response.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
+                matched = true;
+                break;
+              }
+            }
+
             // Execute handler
             await route.handler(request, response);
             matched = true;
@@ -195,7 +269,22 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
         res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
-  });
+  }
+
+  // Create HTTP or HTTPS server based on SSL config
+  const sslCert = process.env.SSL_CERT_PATH;
+  const sslKey = process.env.SSL_KEY_PATH;
+  let server: any;
+  if (sslCert && sslKey && fs.existsSync(sslCert) && fs.existsSync(sslKey)) {
+    const options = { cert: fs.readFileSync(sslCert), key: fs.readFileSync(sslKey) };
+    server = https.createServer(options, handleRequest);
+    console.log('[Server] TLS enabled');
+  } else {
+    server = http.createServer(handleRequest);
+    if (config.environment === 'production') {
+      console.warn('[Server] WARNING: Running without TLS in production. Set SSL_CERT_PATH and SSL_KEY_PATH.');
+    }
+  }
 
   return server;
 }
@@ -220,11 +309,11 @@ async function main() {
   const server = createServer(turbopay);
 
   // Start listening
+  const protocol = process.env.SSL_CERT_PATH && process.env.SSL_KEY_PATH ? 'https' : 'http';
   server.listen(config.port, config.host, () => {
     console.log('='.repeat(60));
-    console.log(`  Server running on http://${config.host}:${config.port}`);
+    console.log(`  Server running on ${protocol}://${config.host}:${config.port}`);
     console.log(`  Environment: ${config.environment}`);
-    console.log(`  Admin: Admin@okomba.com / Admin@123456`);
     console.log('='.repeat(60));
   });
 

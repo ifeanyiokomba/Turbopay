@@ -539,7 +539,10 @@ export class FlutterwaveAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    if (!this.flwConfig.webhook_secret) return true;
+    if (!this.flwConfig.webhook_secret) {
+      console.error('[Flutterwave] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
     return validateFlutterwaveSignature(payload, signature, this.flwConfig.webhook_secret);
   }
 

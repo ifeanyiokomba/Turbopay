@@ -14,6 +14,7 @@ import {
   SettlementResponse,
   TransactionStatus
 } from '../types';
+import { PersistenceManager } from '../utils/persistence';
 
 // =============================================================================
 // LEDGER SERVICE
@@ -25,6 +26,16 @@ export class LedgerService {
   private journalEntries: Map<string, JournalEntry> = new Map();
   private auditLogs: Map<string, AuditLog> = new Map();
   private settlements: Map<string, SettlementResponse> = new Map();
+  private persistence: PersistenceManager | null = null;
+
+  registerPersistence(pm: PersistenceManager): void {
+    this.persistence = pm;
+    pm.register('ledger_wallets', this.wallets);
+    pm.register('ledger_entries', this.ledgerEntries);
+    pm.register('ledger_journals', this.journalEntries);
+    pm.register('ledger_audit', this.auditLogs);
+    pm.register('ledger_settlements', this.settlements);
+  }
 
   // ===========================================================================
   // WALLET MANAGEMENT
@@ -47,6 +58,7 @@ export class LedgerService {
     };
 
     this.wallets.set(wallet.id, wallet);
+    this.dirty('ledger_wallets');
     this.audit('wallet.created', 'wallet', wallet.id, { currency, user_id: userId });
     return wallet;
   }
@@ -262,6 +274,7 @@ export class LedgerService {
     };
 
     this.journalEntries.set(journal.id, journal);
+    this.dirty('ledger_journals');
     this.audit('journal.created', 'journal', journal.id, { reference, line_count: lines.length });
     return journal;
   }
@@ -337,6 +350,7 @@ export class LedgerService {
     };
 
     this.settlements.set(settlement.id, settlement);
+    this.dirty('ledger_settlements');
     this.audit('settlement.created', 'settlement', settlement.id, {
       provider, total_amount: totalAmount, fee
     });
@@ -396,6 +410,7 @@ export class LedgerService {
     };
 
     this.auditLogs.set(log.id, log);
+    this.dirty('ledger_audit');
     return log;
   }
 
@@ -475,6 +490,7 @@ export class LedgerService {
     };
 
     this.ledgerEntries.set(entry.id, entry);
+    this.dirty('ledger_entries');
     return entry;
   }
 
@@ -483,6 +499,8 @@ export class LedgerService {
       w => w.user_id === userId && w.currency === currency
     );
   }
+
+  private dirty(key: string): void { this.persistence?.markDirty(key); }
 
   private generateId(prefix: string): string {
     const timestamp = Date.now().toString(36);

@@ -2,7 +2,8 @@
 // Handles admin login, password recovery, and session management
 
 import crypto from 'crypto';
-import { sha256Hash, hmacSHA256 } from '../../utils/crypto';
+import { hashPassword as hashWithScrypt, verifyPassword as verifyWithScrypt } from '../../utils/crypto';
+import { PersistenceManager } from '../../utils/persistence';
 
 // =============================================================================
 // TYPES
@@ -60,43 +61,63 @@ export interface ChangePasswordRequest {
 export class AdminAuthService {
   private users: Map<string, AdminUser> = new Map();
   private sessions: Map<string, { user_id: string; expires_at: Date }> = new Map();
-  private readonly JWT_SECRET = process.env.JWT_SECRET || 'turbopay-jwt-secret-key-change-in-production';
+  private readonly JWT_SECRET: string;
   private readonly SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
   private readonly PASSWORD_RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
-  private readonly MASTER_ADMIN_EMAIL = 'Admin@okomba.com';
+  private persistence: PersistenceManager | null = null;
 
   constructor() {
-    this.initializeMasterAdmin();
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('[AuthService] JWT_SECRET environment variable is required');
+    }
+    this.JWT_SECRET = jwtSecret;
+
+    // Initialize master admin from environment variables if configured
+    const adminEmail = process.env.MASTER_ADMIN_EMAIL;
+    const adminPassword = process.env.MASTER_ADMIN_PASSWORD;
+    if (adminEmail && adminPassword) {
+      this.initializeMasterAdmin(adminEmail, adminPassword);
+    }
   }
 
   // ===========================================================================
   // INITIALIZATION
   // ===========================================================================
 
-  private initializeMasterAdmin(): void {
-    const masterAdmin = this.createUser({
-      email: this.MASTER_ADMIN_EMAIL,
-      password: 'Admin@123456', // Default password - must be changed on first login
+  private initializeMasterAdmin(email: string, password: string): void {
+    const existing = this.findUserByEmail(email);
+    if (existing) return;
+
+    this.createUser({
+      email,
+      password,
       first_name: 'Master',
       last_name: 'Admin',
       role: 'master_admin',
       created_by: null
     });
-    console.log('[AuthService] Master admin initialized:', masterAdmin.email);
+    console.log('[AuthService] Master admin initialized');
+  }
+
+  registerPersistence(pm: PersistenceManager): void {
+    this.persistence = pm;
+    pm.register('admin_users', this.users);
+    pm.register('admin_sessions', this.sessions);
   }
 
   // ===========================================================================
   // USER MANAGEMENT
   // ===========================================================================
 
-  createUser(params: {
+  async createUser(params: {
     email: string;
     password: string;
     first_name: string;
     last_name: string;
     role: 'master_admin' | 'admin' | 'staff';
     created_by: string | null;
-  }): AdminUser {
+  }): Promise<AdminUser> {
     // Check if user already exists
     const existingUser = this.findUserByEmail(params.email);
     if (existingUser) {
@@ -105,7 +126,7 @@ export class AdminAuthService {
 
     // Generate salt and hash password
     const salt = crypto.randomBytes(16).toString('hex');
-    const password_hash = this.hashPassword(params.password, salt);
+    const password_hash = await this.hashPassword(params.password, salt);
 
     const user: AdminUser = {
       id: this.generateId(),
@@ -126,6 +147,7 @@ export class AdminAuthService {
     };
 
     this.users.set(user.id, user);
+    this.dirtyUsers();
     return user;
   }
 
@@ -152,10 +174,12 @@ export class AdminAuthService {
 
     const updatedUser = { ...user, ...updates, updated_at: new Date() };
     this.users.set(id, updatedUser);
+    this.dirtyUsers();
     return updatedUser;
   }
 
   deleteUser(id: string): boolean {
+    this.dirtyUsers();
     return this.users.delete(id);
   }
 
@@ -174,7 +198,7 @@ export class AdminAuthService {
       return { success: false, error: 'Account is disabled' };
     }
 
-    const passwordValid = this.verifyPassword(request.password, user.salt, user.password_hash);
+    const passwordValid = await this.verifyPassword(request.password, user.salt, user.password_hash);
     if (!passwordValid) {
       return { success: false, error: 'Invalid email or password' };
     }
@@ -183,6 +207,7 @@ export class AdminAuthService {
     user.last_login = new Date();
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     // Generate session token
     const token = this.generateToken(user);
@@ -196,6 +221,7 @@ export class AdminAuthService {
 
   async logout(token: string): Promise<void> {
     this.sessions.delete(token);
+    this.dirtySessions();
   }
 
   validateToken(token: string): AdminUser | null {
@@ -204,6 +230,7 @@ export class AdminAuthService {
 
     if (session.expires_at < new Date()) {
       this.sessions.delete(token);
+    this.dirtySessions();
       return null;
     }
 
@@ -229,6 +256,7 @@ export class AdminAuthService {
     user.password_reset_expires = resetExpires;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     // In production, send email here
     console.log(`[AuthService] Password reset token for ${email}: ${resetToken}`);
@@ -259,7 +287,7 @@ export class AdminAuthService {
 
     // Update password
     const salt = crypto.randomBytes(16).toString('hex');
-    targetUser.password_hash = this.hashPassword(newPassword, salt);
+    targetUser.password_hash = await this.hashPassword(newPassword, salt);
     targetUser.salt = salt;
     targetUser.password_reset_token = null;
     targetUser.password_reset_expires = null;
@@ -275,17 +303,18 @@ export class AdminAuthService {
       return { success: false, message: 'User not found' };
     }
 
-    const valid = this.verifyPassword(currentPassword, user.salt, user.password_hash);
+    const valid = await this.verifyPassword(currentPassword, user.salt, user.password_hash);
     if (!valid) {
       return { success: false, message: 'Current password is incorrect' };
     }
 
     // Update password
     const salt = crypto.randomBytes(16).toString('hex');
-    user.password_hash = this.hashPassword(newPassword, salt);
+    user.password_hash = await this.hashPassword(newPassword, salt);
     user.salt = salt;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     return { success: true, message: 'Password changed successfully' };
   }
@@ -304,10 +333,11 @@ export class AdminAuthService {
 
     // Update password
     const salt = crypto.randomBytes(16).toString('hex');
-    user.password_hash = this.hashPassword(newPassword, salt);
+    user.password_hash = await this.hashPassword(newPassword, salt);
     user.salt = salt;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     return { success: true, message: 'Password reset successfully' };
   }
@@ -330,6 +360,7 @@ export class AdminAuthService {
     user.role = newRole;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     return { success: true, message: `User role updated to ${newRole}` };
   }
@@ -348,6 +379,7 @@ export class AdminAuthService {
     user.is_active = !user.is_active;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     return { success: true, message: `User ${user.is_active ? 'activated' : 'deactivated'}` };
   }
@@ -356,12 +388,15 @@ export class AdminAuthService {
   // HELPERS
   // ===========================================================================
 
-  private hashPassword(password: string, salt: string): string {
-    return sha256Hash(password + salt);
+  private dirtyUsers(): void { this.persistence?.markDirty('admin_users'); }
+  private dirtySessions(): void { this.persistence?.markDirty('admin_sessions'); }
+
+  private async hashPassword(password: string, salt: string): Promise<string> {
+    return hashWithScrypt(password, salt);
   }
 
-  private verifyPassword(password: string, salt: string, hash: string): boolean {
-    return this.hashPassword(password, salt) === hash;
+  private async verifyPassword(password: string, salt: string, hash: string): Promise<boolean> {
+    return verifyWithScrypt(password, salt, hash);
   }
 
   private generateId(): string {
@@ -376,6 +411,7 @@ export class AdminAuthService {
       user_id: user.id,
       expires_at: expiresAt
     });
+    this.dirtySessions();
 
     return sessionId;
   }

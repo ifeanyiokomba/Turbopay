@@ -25,6 +25,7 @@ export interface Route {
   handler: (req: any, res: any) => Promise<void>;
   middleware?: any[];
   description: string;
+  requiredBodyFields?: string[];
 }
 
 export class TurboPayRoutes {
@@ -108,6 +109,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/auth/admin/login',
         description: 'Admin login',
+        requiredBodyFields: ['email', 'password'],
         handler: async (req, res) => {
           const result = await this.adminAuth.login(req.body);
           res.json(result);
@@ -126,6 +128,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/auth/admin/password-reset',
         description: 'Admin password reset request',
+        requiredBodyFields: ['email'],
         handler: async (req, res) => {
           const result = await this.adminAuth.requestPasswordReset(req.body.email);
           res.json(result);
@@ -135,6 +138,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/auth/admin/password-reset/confirm',
         description: 'Admin password reset confirm',
+        requiredBodyFields: ['token', 'new_password'],
         handler: async (req, res) => {
           const result = await this.adminAuth.confirmPasswordReset(req.body.token, req.body.new_password);
           res.json(result);
@@ -144,6 +148,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/auth/customer/register',
         description: 'Customer registration',
+        requiredBodyFields: ['email', 'password', 'first_name', 'last_name'],
         handler: async (req, res) => {
           const result = await this.customerAuth.register(req.body);
           res.json(result);
@@ -153,6 +158,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/auth/customer/login',
         description: 'Customer login',
+        requiredBodyFields: ['email', 'password'],
         handler: async (req, res) => {
           const result = await this.customerAuth.login(req.body);
           res.json(result);
@@ -185,6 +191,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/payments/initialize',
         description: 'Initialize a payment',
+        requiredBodyFields: ['amount', 'currency', 'country'],
         handler: async (req, res) => {
           const result = await this.processor.processPayment({
             request: req.body,
@@ -208,6 +215,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/payments/refund',
         description: 'Process a refund',
+        requiredBodyFields: ['transaction_id', 'amount'],
         handler: async (req, res) => {
           const result = await this.processor.processRefund({
             transaction_id: req.body.transaction_id,
@@ -233,6 +241,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/transfers/single',
         description: 'Process a single transfer',
+        requiredBodyFields: ['amount', 'currency', 'country'],
         handler: async (req, res) => {
           const result = await this.processor.processTransfer({
             request: req.body,
@@ -247,6 +256,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/transfers/bulk',
         description: 'Process bulk transfers',
+        requiredBodyFields: ['transfers'],
         handler: async (req, res) => {
           const result = await this.processor.processBulkTransfers(
             req.body.transfers,
@@ -270,6 +280,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/banks/resolve',
         description: 'Resolve bank account',
+        requiredBodyFields: ['code', 'account_number'],
         handler: async (req, res) => {
           const result = await this.processor.resolveBank(req.body.code, req.body.account_number, req.body.provider);
           res.json(result);
@@ -288,6 +299,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/bills/pay',
         description: 'Pay a bill',
+        requiredBodyFields: ['amount', 'currency', 'country'],
         handler: async (req, res) => {
           const result = await this.processor.processBillPayment({
             request: req.body,
@@ -320,6 +332,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/virtual-accounts',
         description: 'Create virtual account',
+        requiredBodyFields: ['country', 'currency'],
         handler: async (req, res) => {
           const result = await this.processor.processVirtualAccount({
             request: req.body,
@@ -343,6 +356,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/cards/create',
         description: 'Create virtual card',
+        requiredBodyFields: ['currency', 'amount'],
         handler: async (req, res) => {
           try {
             const card = await this.virtualCard.createCard({
@@ -359,6 +373,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/cards/block',
         description: 'Block virtual card',
+        requiredBodyFields: ['card_id'],
         handler: async (req, res) => {
           try {
             const card = await this.virtualCard.blockCard({
@@ -376,6 +391,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/cards/unblock',
         description: 'Unblock virtual card',
+        requiredBodyFields: ['card_id'],
         handler: async (req, res) => {
           try {
             const card = await this.virtualCard.unblockCard({
@@ -419,6 +435,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/international/transfer',
         description: 'Process international transfer',
+        requiredBodyFields: ['amount', 'source_currency', 'destination_currency'],
         handler: async (req, res) => {
           const result = await this.international.transfer(req.body);
           res.json(result);
@@ -440,6 +457,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/international/rates',
         description: 'Compare exchange rates',
+        requiredBodyFields: ['from_currency', 'to_currency', 'amount'],
         handler: async (req, res) => {
           const rates = await this.international.compareExchangeRates(
             req.body.from_currency,
@@ -666,8 +684,9 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/admin/users',
         description: 'Create admin user',
+        requiredBodyFields: ['email', 'password', 'first_name', 'last_name', 'role'],
         handler: async (req, res) => {
-          const user = this.adminAuth.createUser({ ...req.body, created_by: req.user?.id });
+          const user = await this.adminAuth.createUser({ ...req.body, created_by: req.user?.id });
           res.json({ success: true, user });
         }
       },

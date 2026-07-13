@@ -67,6 +67,31 @@ export function sha256Hash(data: string): string {
 }
 
 /**
+ * Password hashing using scrypt (purpose-built for password storage).
+ * Returns hex-encoded derived key with embedded salt.
+ */
+export function hashPassword(password: string, salt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey.toString('hex'));
+    });
+  });
+}
+
+/**
+ * Verify a password against a stored scrypt hash.
+ */
+export function verifyPassword(password: string, salt: string, storedHash: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey.toString('hex') === storedHash);
+    });
+  });
+}
+
+/**
  * SHA512 Hash
  */
 export function sha512Hash(data: string): string {

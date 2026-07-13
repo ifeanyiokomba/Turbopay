@@ -575,7 +575,10 @@ export class MonnifyAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    if (!this.monnifyConfig.webhook_secret) return true;
+    if (!this.monnifyConfig.webhook_secret) {
+      console.error('[Monnify] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
     return validateMonnifySignature(payload, signature, this.monnifyConfig.webhook_secret);
   }
 

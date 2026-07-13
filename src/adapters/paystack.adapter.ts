@@ -520,7 +520,10 @@ export class PaystackAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    if (!this.paystackConfig.webhook_secret) return true;
+    if (!this.paystackConfig.webhook_secret) {
+      console.error('[Paystack] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
     const rawBody = JSON.stringify(payload);
     return validatePaystackSignature(rawBody, signature, this.paystackConfig.webhook_secret);
   }

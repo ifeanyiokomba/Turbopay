@@ -524,7 +524,10 @@ export class QuicktellerAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    if (!this.quicktellerConfig.webhook_secret) return true;
+    if (!this.quicktellerConfig.webhook_secret) {
+      console.error('[Quickteller] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
     return validateQuicktellerSignature(payload, signature, this.quicktellerConfig.webhook_secret);
   }
 

@@ -516,7 +516,10 @@ export class OnafriqAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    if (!this.onafriqConfig.webhook_secret) return true;
+    if (!this.onafriqConfig.webhook_secret) {
+      console.error('[Onafriq] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
     return validateOnafriqSignature(payload, signature, this.onafriqConfig.webhook_secret);
   }
 

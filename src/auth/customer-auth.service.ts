@@ -3,7 +3,8 @@
 // Separate from admin auth — different interface, different capabilities
 
 import crypto from 'crypto';
-import { sha256Hash } from '../utils/crypto';
+import { hashPassword as hashWithScrypt, verifyPassword as verifyWithScrypt } from '../utils/crypto';
+import { PersistenceManager } from '../utils/persistence';
 
 // =============================================================================
 // TYPES
@@ -78,6 +79,13 @@ export class CustomerAuthService {
   private sessions: Map<string, { user_id: string; expires_at: Date }> = new Map();
   private readonly SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
   private readonly PASSWORD_RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
+  private persistence: PersistenceManager | null = null;
+
+  registerPersistence(pm: PersistenceManager): void {
+    this.persistence = pm;
+    pm.register('customer_users', this.users);
+    pm.register('customer_sessions', this.sessions);
+  }
 
   // ===========================================================================
   // REGISTRATION
@@ -99,7 +107,7 @@ export class CustomerAuthService {
 
     // Generate salt and hash password
     const salt = crypto.randomBytes(16).toString('hex');
-    const password_hash = this.hashPassword(request.password, salt);
+    const password_hash = await this.hashPassword(request.password, salt);
 
     const user: CustomerUser = {
       id: this.generateId(),
@@ -123,6 +131,7 @@ export class CustomerAuthService {
     };
 
     this.users.set(user.id, user);
+    this.dirtyUsers();
     return { success: true, user: this.sanitizeUser(user) };
   }
 
@@ -141,7 +150,7 @@ export class CustomerAuthService {
       return { success: false, error: 'Account is disabled' };
     }
 
-    const passwordValid = this.verifyPassword(request.password, user.salt, user.password_hash);
+    const passwordValid = await this.verifyPassword(request.password, user.salt, user.password_hash);
     if (!passwordValid) {
       return { success: false, error: 'Invalid email or password' };
     }
@@ -150,6 +159,7 @@ export class CustomerAuthService {
     user.last_login = new Date();
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     // Generate session token
     const token = this.generateToken(user);
@@ -163,6 +173,7 @@ export class CustomerAuthService {
 
   async logout(token: string): Promise<void> {
     this.sessions.delete(token);
+    this.dirtySessions();
   }
 
   validateToken(token: string): CustomerUser | null {
@@ -171,6 +182,7 @@ export class CustomerAuthService {
 
     if (session.expires_at < new Date()) {
       this.sessions.delete(token);
+    this.dirtySessions();
       return null;
     }
 
@@ -220,6 +232,7 @@ export class CustomerAuthService {
     user.kyc_tier = tier;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     return {
       success: true,
@@ -260,6 +273,7 @@ export class CustomerAuthService {
     user.password_reset_expires = resetExpires;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     console.log(`[CustomerAuth] Password reset token for ${email}: ${resetToken}`);
 
@@ -287,12 +301,13 @@ export class CustomerAuthService {
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
-    targetUser.password_hash = this.hashPassword(newPassword, salt);
+    targetUser.password_hash = await this.hashPassword(newPassword, salt);
     targetUser.salt = salt;
     targetUser.password_reset_token = null;
     targetUser.password_reset_expires = null;
     targetUser.updated_at = new Date();
     this.users.set(targetUser.id, targetUser);
+    this.dirtyUsers();
 
     return { success: true, message: 'Password has been reset successfully' };
   }
@@ -303,16 +318,17 @@ export class CustomerAuthService {
       return { success: false, message: 'User not found' };
     }
 
-    const valid = this.verifyPassword(currentPassword, user.salt, user.password_hash);
+    const valid = await this.verifyPassword(currentPassword, user.salt, user.password_hash);
     if (!valid) {
       return { success: false, message: 'Current password is incorrect' };
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
-    user.password_hash = this.hashPassword(newPassword, salt);
+    user.password_hash = await this.hashPassword(newPassword, salt);
     user.salt = salt;
     user.updated_at = new Date();
     this.users.set(user.id, user);
+    this.dirtyUsers();
 
     return { success: true, message: 'Password changed successfully' };
   }
@@ -332,12 +348,16 @@ export class CustomerAuthService {
 
     const updatedUser = { ...user, ...updates, updated_at: new Date() };
     this.users.set(userId, updatedUser);
+    this.dirtyUsers();
     return updatedUser;
   }
 
   // ===========================================================================
   // HELPERS
   // ===========================================================================
+
+  private dirtyUsers(): void { this.persistence?.markDirty('customer_users'); }
+  private dirtySessions(): void { this.persistence?.markDirty('customer_sessions'); }
 
   private findUserByEmail(email: string): CustomerUser | undefined {
     for (const user of this.users.values()) {
@@ -361,12 +381,12 @@ export class CustomerAuthService {
     return this.users.get(id);
   }
 
-  private hashPassword(password: string, salt: string): string {
-    return sha256Hash(password + salt);
+  private async hashPassword(password: string, salt: string): Promise<string> {
+    return hashWithScrypt(password, salt);
   }
 
-  private verifyPassword(password: string, salt: string, hash: string): boolean {
-    return this.hashPassword(password, salt) === hash;
+  private async verifyPassword(password: string, salt: string, hash: string): Promise<boolean> {
+    return verifyWithScrypt(password, salt, hash);
   }
 
   private generateId(): string {
@@ -381,6 +401,7 @@ export class CustomerAuthService {
       user_id: user.id,
       expires_at: expiresAt
     });
+    this.dirtySessions();
 
     return sessionId;
   }
