@@ -218,8 +218,10 @@ export async function POST(req: Request) {
       // login response. The client can fetch /api/profile for full details.
     },
   });
-  } catch (error) {
-    console.error("[User Login Error]", error);
-    return errorJson("Internal server error", 500);
+  } catch (error: any) {
+    const detail = error?.message ?? String(error);
+    const code = error?.code ?? "UNKNOWN";
+    console.error("[User Login Error]", { message: detail, code, stack: error?.stack?.slice(0, 500) });
+    return errorJson(`Internal server error: ${detail}`, 500);
   }
 }

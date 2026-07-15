@@ -49,8 +49,10 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-  } catch (error) {
-    console.error("[Admin Login Error]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (error: any) {
+    const detail = error?.message ?? String(error);
+    const code = error?.code ?? "UNKNOWN";
+    console.error("[Admin Login Error]", { message: detail, code, stack: error?.stack?.slice(0, 500) });
+    return NextResponse.json({ error: `Internal server error: ${detail}` }, { status: 500 });
   }
 }
