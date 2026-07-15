@@ -1,0 +1,66 @@
+# ============================================================
+# TurboPay — Production Reverse Proxy (Caddy)
+# ============================================================
+#
+# Caddy handles:
+#   - Automatic TLS via Let's Encrypt (for production domains)
+#   - Rate limiting at the edge
+#   - Security headers
+#   - Request logging
+#   - Load balancing across app replicas
+#
+# Usage:
+#   Local:     caddy run --config Caddyfile
+#   Production: Replace :80 with your domain for auto-TLS
+
+# ─── Production (with TLS) ──────────────────────────────────
+# Uncomment and replace turbopay.example.com with your domain:
+#
+# turbopay.example.com {
+#   encode gzip zstd
+#   reverse_proxy turbopay:3000 {
+#     header_up Host {host}
+#     header_up X-Forwarded-For {remote_host}
+#     header_up X-Forwarded-Proto {scheme}
+#     header_up X-Real-IP {remote_host}
+#   }
+# }
+
+# ─── Development / Docker Compose ───────────────────────────
+:80 {
+  encode gzip zstd
+
+  # Security headers
+  header {
+    X-Frame-Options "DENY"
+    X-Content-Type-Options "nosniff"
+    X-XSS-Protection "1; mode=block"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+
+  # Rate limiting — 100 req/min per IP for general, 10 req/min for auth
+  # Note: Caddy's rate_limit module requires the caddy-ratelimit plugin.
+  # For now, rate limiting is handled by the app middleware.
+
+  reverse_proxy turbopay:3000 {
+    # Trust the proxy — pass real client info
+    header_up Host {host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Real-IP {remote_host}
+
+    # Health check
+    health_uri /api/health
+    health_interval 30s
+    health_timeout 5s
+  }
+
+  # Logging
+  log {
+    output stdout
+    format json
+    level INFO
+  }
+}

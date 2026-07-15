@@ -1,0 +1,2 @@
+# Prisma migration lock — ensures consistent database provider.
+provider = "postgresql"

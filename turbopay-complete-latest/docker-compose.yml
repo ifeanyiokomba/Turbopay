@@ -1,0 +1,102 @@
+# ============================================================
+# Turbopay — Production Docker Compose with Horizontal Scaling
+# ============================================================
+#
+# This compose file deploys:
+#   - 3 app instances (load-balanced by Caddy)
+#   - PostgreSQL 16 (primary database)
+#   - Redis 7 (shared cache, rate limiting, circuit breaker, sessions)
+#   - Caddy (reverse proxy + load balancer + automatic TLS)
+#
+# Usage:
+#   export POSTGRES_PASSWORD=$(openssl rand -hex 16)
+#   export REDIS_PASSWORD=$(openssl rand -hex 16)
+#   export TURBOPAY_PII_KEY=$(openssl rand -hex 32)
+#   export TURBOPAY_MONNIFY_WEBHOOK_SECRET=$(openssl rand -hex 32)
+#   export CRON_SECRET=$(openssl rand -hex 32)
+#   docker compose up --build -d
+#
+# To scale the app tier: docker compose up --scale turbopay=5
+
+services:
+  turbopay:
+    build: .
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://turbopay:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/turbopay?connection_limit=10&pool_timeout=10
+      - DIRECT_URL=postgresql://turbopay:${POSTGRES_PASSWORD}@postgres:5432/turbopay
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379
+      - TURBOPAY_PII_KEY=${TURBOPAY_PII_KEY:?TURBOPAY_PII_KEY must be set — run: export TURBOPAY_PII_KEY=$(openssl rand -hex 32)}
+      - TURBOPAY_MONNIFY_WEBHOOK_SECRET=${TURBOPAY_MONNIFY_WEBHOOK_SECRET:?TURBOPAY_MONNIFY_WEBHOOK_SECRET must be set}
+      - CRON_SECRET=${CRON_SECRET:?CRON_SECRET must be set — run: export CRON_SECRET=$(openssl rand -hex 32)}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: turbopay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: turbopay
+    # No host port mapping — only accessible via Docker internal networking.
+    # The app connects to postgres:5432 over the compose network.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U turbopay"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set} --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    # No host port mapping — only accessible via Docker internal networking.
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddydata:/data
+      - caddyconfig:/config
+    restart: unless-stopped
+    depends_on:
+      - turbopay
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:

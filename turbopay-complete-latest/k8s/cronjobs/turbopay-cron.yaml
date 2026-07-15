@@ -1,0 +1,304 @@
+# ============================================================
+# TurboPay — Kubernetes CronJob Definitions
+# ============================================================
+#
+# These CronJobs call the TurboPay API routes on schedule.
+# Each job sends an HTTP request to the cron endpoint with
+# the x-cron-secret header for authentication.
+#
+# Prerequisites:
+#   - TurboPay deployment running in the cluster
+#   - CRON_SECRET environment variable configured
+#   - Network policy allows CronJob pods to reach the TurboPay service
+#
+# Usage:
+#   kubectl apply -f k8s/cronjobs/turbopay-cron.yaml
+# ============================================================
+
+---
+# Outbox Publisher — every minute
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-outbox-publisher
+  namespace: turbopay
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 55
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/outbox-publisher
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
+# Queue Worker — every minute
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-queue-worker
+  namespace: turbopay
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 55
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/queue-worker
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
+# Stuck Transactions — every 2 minutes
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-stuck-transactions
+  namespace: turbopay
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 115
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/stuck-transactions
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
+# Settlement Worker — every 5 minutes
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-settlement-worker
+  namespace: turbopay
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 290
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/settlement-worker
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
+# Reconciliation — hourly
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-reconciliation
+  namespace: turbopay
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3590
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/reconciliation
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
+# Session Cleanup — daily at 3 AM
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-session-cleanup
+  namespace: turbopay
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3590
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/session-cleanup
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
+# Scheduled Payments — every minute
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-scheduled-payments
+  namespace: turbopay
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 55
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/scheduled-payments
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
+# BillSwift Bulk — every 30 minutes
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-billswift-bulk
+  namespace: turbopay
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1790
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/billswift-bulk
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET

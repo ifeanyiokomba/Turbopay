@@ -1,0 +1,2119 @@
+// ============================================================
+// TURBOCORE — Fintech database schema
+// Principles: ledger is source of truth; double-entry; immutable;
+// idempotent; atomic. Money stored as Int kobo (1 NGN = 100 kobo)
+// to avoid floating-point errors (industry-standard minor units).
+//
+// Database: PostgreSQL — required for row-level locking, concurrent
+// writers, and horizontal scalability. SQLite is NOT supported.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── PRODUCTION DATASOURCE (already configured above) ────────
+// DATABASE_URL: PgBouncer pooled URL (runtime)
+//   postgresql://user:pass@pooler.supabase.com:5432/db?pgbouncer=true&connection_limit=1
+// DIRECT_URL: direct URL for migrations (bypasses PgBouncer)
+//   postgresql://user:pass@db.project.supabase.co:5432/postgres
+// See .env.example for full setup instructions.
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id                String   @id @default(cuid())
+  fullName          String
+  username          String?  @unique // editable, unique, usable for login
+  email             String?  @unique // nullable — users can sign up with phone only
+  phone             String?  @unique // nullable for Google OAuth users (set during onboarding)
+  country           String?  // ISO 3166-1 alpha-2 (NG, GH, US, GB, …) — set at signup
+  passwordHash      String?  // nullable for Google OAuth users (no password)
+  googleId          String?  @unique // Google OAuth subject ID
+  googlePicture     String?  // Google profile picture URL
+  appleId           String?  @unique // Apple Sign-In unique user ID (sub claim)
+  applePicture      String?  // Apple profile picture URL (if provided)
+  transactionPinHash String? // scrypt-hashed 4-digit PIN required for every debit
+  pinSetAt          DateTime?
+  pinFailCount      Int      @default(0) // brute-force lockout counter
+  pinLockedUntil    DateTime? // locked until this timestamp after 5 fails
+  // Per-user failed-login lockout (mirrors pin.ts pattern).
+  // Protects a known email from distributed-IP brute-force: after 5 consecutive
+  // password failures the account is locked for 15 minutes regardless of source IP.
+  loginFailCount    Int      @default(0)
+  loginLockedUntil  DateTime?
+  bvn               String?
+  nin               String?
+  // Fields populated from Dojah NIN/BVN verification — replace user-provided data with verified data.
+  dateOfBirth       String?  // verified DOB from NIN/BVN (ISO date string)
+  gender            String?  // M | F
+  stateOfOrigin     String?  // verified state of origin from NIN/BVN
+  lga               String?  // verified LGA from NIN/BVN
+  town              String?  // verified town/city from NIN/BVN
+  kycTier           Int      @default(1) // 1 | 2 | 3
+  kycStatus         String   @default("UNVERIFIED") // UNVERIFIED | PENDING | VERIFIED | REJECTED
+  status            String   @default("ACTIVE") // ACTIVE | FROZEN | SUSPENDED | CLOSED
+  emailVerified     Boolean  @default(false)
+  // NDPR/GDPR consent tracking.
+  privacyPolicyAccepted Boolean @default(false)
+  privacyPolicyAcceptedAt DateTime?
+  marketingConsent   Boolean  @default(false)
+  marketingConsentAt DateTime?
+  phoneVerified     Boolean  @default(false)
+  avatarUrl         String?
+  bio               String?  // short user bio
+  role              String   @default("USER") // USER | ADMIN
+
+  // ── MFA (TOTP authenticator) ─────────────────────────────────
+  // The TOTP secret is AES-256-GCM encrypted at rest (encryptPii from
+  // crypto.ts) so a DB dump alone can't be used to mint codes. The
+  // `mfaBackupCodesEnc` field stores a JSON array of HASHED backup codes
+  // (each backed up as `scrypt$<salt>$<hash>` so a DB leak never exposes
+  // usable backup codes either) — also encrypted as a single blob.
+  // `mfaEnabledAt` is set when the user completes the enable flow.
+  //
+  // `mfaLastStep` records the TOTP time-step (epoch / 30, RFC 6238) of the
+  // most-recently-accepted code. `verifyToken` rejects any code whose step
+  // is <= `mfaLastStep` — this prevents TOTP replay within the ±1 window
+  // (a phished code is useless after first use, even within its ~90s
+  // validity window). Cleared on disable.
+  mfaSecretEnc      String?
+  mfaEnabled        Boolean  @default(false)
+  mfaBackupCodesEnc String?
+  mfaEnabledAt      DateTime?
+  mfaLastStep       Int?
+
+  // ── Large Transaction Shield ─────────────────────────────────────────
+  // When `largeTxShieldEnabled` is true, any debit whose amount (kobo) is
+  // >= `largeTxThresholdKobo` requires a step-up OTP before the pipeline
+  // proceeds. Default threshold is ₦1,000 (100_000 kobo). The shield is OFF
+  // by default — the user opts in via Settings → Security.
+  largeTxShieldEnabled  Boolean  @default(false)
+  largeTxThresholdKobo  Int      @default(100000) // ₦1,000 default
+
+  // ── Location Guard ───────────────────────────────────────────────────
+  // When `locationGuardEnabled` is true, the debit pipeline checks whether
+  // the current request IP is in a /24 subnet the user has previously
+  // transacted from (any Device row with an IP in that subnet). If not, the
+  // pipeline throws `StepUpRequiredError` (HTTP 403) so the client can
+  // prompt for a step-up OTP before retrying the original debit. OFF by
+  // default — opt-in via Settings → Security → Location Guard.
+  locationGuardEnabled  Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  wallet          Wallet?
+  virtualAccounts VirtualAccount[]
+  transactions    Transaction[]
+  beneficiaries   Beneficiary[]
+  kycRecords      KycVerification[]
+  auditLogs       AuditLog[]
+  sessions        Session[]
+  amlFlags        AmlFlag[]
+  otpCodes        OtpCode[]
+  airtimeData     AirtimeDataPurchase[]
+  billPayments    BillPayment[]
+  notificationLogs NotificationLog[]
+  supportNotes    SupportNote[]
+  usernameHistory UsernameHistory[]
+  loginHistory    LoginHistory[]
+  recoveryTokens  RecoveryToken[]
+  referrals       Referral[]
+  virtualCards    VirtualCard[]
+  savingsProducts SavingsProduct[]
+  userInvestments UserInvestment[]
+  supportTickets  SupportTicket[]
+  chatConversations ChatConversation[]
+  devices          Device[]
+  securityEvents   SecurityEvent[]
+  securityQuestions SecurityQuestion[]
+  rewards         UserReward[]
+  addressVerifications AddressVerification[]
+  statementRequests StatementRequest[]
+  disputes         Dispute[]
+  scheduledPayments ScheduledPayment[]
+  paymentTemplates  PaymentTemplate[]
+  notifications    InAppNotification[]
+  commPreferences CommunicationPreference?
+  paymentIntents  PaymentIntent[]
+  paymentFlowLogs PaymentFlowLog[]
+  passkeys        Passkey[]
+  paymentLinks    PaymentLink[]
+  currencyWallets CurrencyWallet[]
+  intlBeneficiaries InternationalBeneficiary[]
+  screeningResults ScreeningResult[]
+  stripeCustomer   StripeCustomer?
+
+  @@index([status])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash String    @unique
+  userAgent String?
+  ip          String?
+  deviceInfo  String?
+  // Access-token expiry (24h). The session token sent in the cookie / Bearer
+  // header is short-lived so a compromised access token has a small blast
+  // radius. When it expires the client must call /api/auth/refresh with the
+  // refresh token to mint a new access token (see auth.ts createSession +
+  // /api/auth/refresh route).
+  expiresAt DateTime
+  // Refresh-token hash (sha256, same as tokenHash). Nullable so existing
+  // sessions created before this hardening pass keep working (they simply
+  // can't be refreshed — the user must re-authenticate when the access token
+  // expires). Cleared on logout so a stolen refresh token can't be replayed
+  // after the user signs out.
+  refreshTokenHash String?
+  // Refresh-token expiry (30d). When this expires the user MUST re-authenticate
+  // (no more silent refresh). Set to now() on logout to invalidate immediately.
+  refreshExpiresAt DateTime?
+  // ── Iframe token (short-lived Bearer for cross-site iframe) ──────────
+  // Issued by /api/auth/iframe-token for cross-site iframe contexts where
+  // HttpOnly cookies are blocked. 5-minute TTL, stored only in page memory
+  // (NOT localStorage). Each request to /api/auth/iframe-token rotates the
+  // previous iframe token so only one is valid at a time.
+  iframeTokenHash  String?
+  iframeExpiresAt  DateTime?
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
+/// WebAuthn / Passkey — FIDO2 credential for passwordless or second-factor auth.
+model Passkey {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId      String   @unique // base64url-encoded credential ID (unique per authenticator)
+  publicKey         String   // base64url-encoded public key (P-256 or Ed25519)
+  counter           BigInt   @default(0) // signature counter — incremented on each use; detect cloning
+  deviceName        String   // human-readable name, e.g. "iPhone 15 Pro"
+  deviceType        String   @default("singleDevice") // singleDevice | multiDevice
+  transports        String?  // JSON array: ["internal", "hybrid", "usb", "ble", "nfc"]
+  createdAt         DateTime @default(now())
+  lastUsedAt        DateTime?
+
+  @@index([userId])
+  @@index([credentialId])
+}
+
+// Wallet = per-user balance CACHE. The LedgerEntry table is the source of truth.
+model Wallet {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balanceKobo   Int      @default(0) // cache; recomputed from ledger
+  currency      String   @default("NGN")
+  status        String   @default("ACTIVE") // ACTIVE | FROZEN
+  version       Int      @default(0) // optimistic concurrency
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ledgerEntries LedgerEntry[]
+  transactions  Transaction[]
+
+  @@index([status])
+}
+
+// Double-entry ledger. Every financial movement posts TWO rows:
+// a DEBIT on one wallet and a CREDIT on another (or a system contra).
+// Rows are immutable; corrections happen via REVERSAL refType.
+model LedgerEntry {
+  id              String   @id @default(cuid())
+  walletId        String
+  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  entryType       String // DEBIT | CREDIT
+  amountKobo      Int
+  currency        String   @default("NGN")
+  refType         String // FUNDING | TRANSFER | AIRTIME | DATA | BILL | REVERSAL | FEE | WEBHOOK_CREDIT | INVESTMENT
+  refId           String? // related Transaction id
+  pairId          String? // id of the matching opposite leg (internal transfers)
+  balanceAfterKobo Int
+  description     String?
+  immutable       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([walletId])
+  @@index([walletId, entryType])
+  @@index([refType, refId])
+}
+
+// Multi-currency ledger. Same design as LedgerEntry but references CurrencyWallet.
+model CurrencyLedgerEntry {
+  id              String   @id @default(cuid())
+  currencyWalletId String
+  currencyWallet  CurrencyWallet @relation(fields: [currencyWalletId], references: [id], onDelete: Cascade)
+  entryType       String // DEBIT | CREDIT
+  amountMinor     Int
+  currency        String
+  refType         String
+  refId           String?
+  pairId          String?
+  balanceAfter    Int
+  description     String?
+  immutable       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([currencyWalletId])
+  @@index([currencyWalletId, entryType])
+  @@index([refType, refId])
+}
+
+// User-facing transaction history (denormalised view over the ledger).
+model Transaction {
+  id                 String    @id @default(cuid())
+  reference          String    @unique // TP-XXXXXXXX
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId           String
+  wallet             Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type               String // FUNDING | TRANSFER_IN | TRANSFER_OUT | AIRTIME | DATA | BILL_ELECTRICITY | BILL_UTILITY | REVERSAL | FEE
+  direction          String // CREDIT | DEBIT
+  amountKobo         Int
+  feeKobo            Int       @default(0)
+  status             String    @default("SUCCESS") // PENDING | SUCCESS | FAILED | REVERSED
+  // Coarse-grained lifecycle state machine — used by the tx-state helper for
+  // forward-only transitions + stuck-tx detection. NULL on legacy rows.
+  // INITIATED | PIN_VERIFIED | AML_CHECKED | HOLD_POSTED | PROVIDER_CALLED | SETTLED | REVERSED | TIMEOUT
+  state               String?
+  counterpartyName   String?
+  counterpartyAccount String?
+  counterpartyBank   String?
+  description        String?
+  provider           String? // monnify | baxi | dojah | turbopay
+  providerRef        String?
+  reversalOfId       String?
+  metadata           String? // JSON string
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  settlementQueue    SettlementQueue?
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([type])
+  @@index([status])
+  @@index([state])
+  @@index([createdAt])
+  // Composite indexes for high-traffic AML velocity queries.
+  @@index([userId, direction, status, createdAt])
+  @@index([userId, type, createdAt])
+  // Composite index for routing engine success-rate scoring.
+  @@index([provider, status, createdAt])
+}
+
+/// Async task queue — fire-and-forget side-effects (notifications, cashback,
+/// webhook fan-out) that must NOT block the financial transaction. Polled by
+/// the /api/cron/queue-worker route (every 1 minute).
+model AsyncTask {
+  id          String   @id @default(cuid())
+  type        String   // NOTIFY | CASHBACK | EVENT
+  payload     String   // JSON
+  status      String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, type, createdAt])
+}
+
+model VirtualAccount {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountNumber String   @unique
+  accountName   String
+  bankName      String
+  bankCode      String
+  provider      String   @default("monnify")
+  providerRef   String?
+  status        String   @default("ACTIVE") // ACTIVE | CLOSED
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model StripeCustomer {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model KycVerification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier       Int // 1 | 2 | 3
+  status     String    @default("PENDING") // PENDING | VERIFIED | REJECTED
+  provider   String? // dojah | verifyme | prembly
+  nin        String?
+  bvn        String?
+  phone      String?
+  email      String?
+  firstName  String? // extracted from provider response for indexed UI access
+  lastName   String? // (avoids runtime JSON.parse for display)
+  middleName String?
+  dob        String?
+  gender     String?
+  payload    String? // full JSON of provider response (audit only)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Beneficiary {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  accountNumber String
+  bankName      String
+  bankCode      String
+  type          String   @default("TURBOPAY") // TURBOPAY | EXTERNAL
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model IdempotencyRecord {
+  id           String    @id @default(cuid())
+  key          String    @unique
+  userId       String?
+  endpoint     String
+  requestBody  String? // hashed
+  responseBody String? // cached JSON response
+  status       Int?
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  category  String // AUTH | WALLET | TRANSFER | BILL | KYC | AML | ADMIN | WEBHOOK
+  severity  String   @default("INFO") // INFO | WARN | ERROR | CRITICAL
+  ip          String?
+  deviceInfo  String?
+  userAgent String?
+  metadata  String? // JSON
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([category])
+  @@index([severity])
+  @@index([createdAt])
+  @@index([userId, category, createdAt])
+}
+
+model AmlFlag {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule        String // VELOCITY | LARGE_AMOUNT | RAPID_TRANSFER | SUSPICIOUS
+  severity    String // LOW | MEDIUM | HIGH
+  description String
+  metadata    String?
+  resolved    Boolean   @default(false)
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([resolved])
+}
+
+model BillPayment {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionId String?
+  category      String // ELECTRICITY | CABLE_TV | WATER | INTERNET | REMITA | QUICKTELLER
+  provider      String? // baxi | quickteller | remita
+  customer      String // meter / account number
+  customerName  String?
+  product       String?
+  amountKobo    Int
+  feeKobo       Int      @default(0)
+  status        String   @default("SUCCESS")
+  reference     String
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([category])
+}
+
+model AirtimeDataPurchase {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionId String?
+  type          String // AIRTIME | DATA
+  phoneNumber   String
+  network       String
+  plan          String?
+  amountKobo    Int
+  status        String   @default("SUCCESS")
+  reference     String
+  provider      String   @default("baxi")
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   String // EMAIL | SMS | WHATSAPP | PHONE
+  target    String // email or phone
+  code      String
+  purpose   String // REGISTER | VERIFY_EMAIL | VERIFY_PHONE | RESET_PASSWORD
+  consumed  Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([target, purpose])
+}
+
+// ============================================================
+// TURBOCORE PLATFORM MODELS (additive — multi-product platform)
+// ============================================================
+
+/// Generic webhook event store — every provider webhook lands here for
+/// idempotency, replay protection, dead-letter queuing, and audit.
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String   // monnify | intl-receiving | paystack | ...
+  providerRef String   // provider's unique event reference
+  payload     String   // raw body (capped)
+  signature   String?
+  status      String   @default("PENDING") // PENDING | PROCESSED | FAILED | IGNORED
+  error       String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, providerRef])
+  @@index([provider, status])
+  @@index([receivedAt])
+}
+
+/// International transfer (outbound) — architectural, inactive until a
+/// licensed partner is configured.
+model InternationalTransfer {
+  id                String   @id @default(cuid())
+  reference         String   @unique
+  userId            String
+  sourceCurrency    String   // NGN | USD | ...
+  sourceAmountMinor Int
+  destinationCurrency String
+  destinationAmountMinor Int
+  rate              Decimal
+  feesMinor         Int
+  settlementCurrency String
+  beneficiaryName   String
+  beneficiaryAccount String?
+  beneficiaryBank   String?
+  beneficiaryCountry String
+  purpose           String
+  status            String   @default("PENDING") // PENDING | SUCCESS | FAILED | REVERSED
+  provider          String   @default("mock")
+  providerRef       String?
+  metadata          String?  // JSON
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([provider, providerRef])
+}
+
+/// Cross-border settlement record — tracks the settlement status of an
+/// international transfer or receiving event.
+model Settlement {
+  id                String   @id @default(cuid())
+  providerRef       String   @unique
+  provider          String
+  type              String   // INTL_RECEIVING | INTL_TRANSFER | BILL
+  settlementCurrency String
+  settlementAmountMinor Int
+  status            String   @default("PENDING") // PENDING | SETTLED | FAILED
+  settledAt         DateTime?
+  reference         String?
+  metadata          String?  // JSON
+  createdAt         DateTime @default(now())
+
+  @@index([provider, status])
+  @@index([status])
+}
+
+/// Feature flag — DB-backed, supports per-user override.
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "intl_transfers", "billswift_bulk"
+  description String?
+  enabled     Boolean  @default(false)
+  // Optional product scope; null = all products.
+  product     String?
+  // Percentage rollout (0-100). 0 = off, 100 = on for everyone.
+  rollout     Int      @default(0)
+  metadata    String?  // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  overrides   FeatureFlagOverride[]
+}
+
+model FeatureFlagOverride {
+  id          String   @id @default(cuid())
+  flagId      String
+  flag        FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  userId      String
+  enabled     Boolean  // explicit per-user enable/disable
+  createdAt   DateTime @default(now())
+
+  @@unique([flagId, userId])
+  @@index([userId])
+}
+
+/// RBAC — roles + permissions. A user has one role; a role has many permissions.
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // user | admin | support | compliance | finance
+  description String?
+  permissions String   // JSON array of permission strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Configurable fee schedule — data-driven fee engine.
+model FeeConfig {
+  id            String   @id @default(cuid())
+  product       String   // turbopay | billswift
+  category      String   // TRANSFER | AIRTIME | DATA | BILL_ELECTRICITY | BILL_UTILITY | INTL_TRANSFER | ...
+  // Fee type: PERCENT | FLAT | TIERED
+  type          String   @default("PERCENT")
+  // For PERCENT: basis points (100 = 1%). For FLAT: minor units.
+  value         Int      @default(0)
+  /// Market percent — platform markup margin in basis points (100 = 1%).
+  /// Applied on top of the base fee as the platform's revenue margin.
+  markupBps     Int      @default(0)
+  minFeeMinor   Int      @default(0)
+  maxFeeMinor   Int?     // null = no cap
+  currency      String   @default("NGN")
+  active        Boolean  @default(true)
+  metadata      String?  // JSON — tiered fee structure, promo config, etc.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([product, category])
+  @@index([product, active])
+}
+
+/// FX Engine — per-pair configuration (spread, fees, limits, enabled flag).
+/// One row per supported currency pair (e.g. "USD→NGN"). Managed via the
+/// /api/admin/fx routes. The FX engine caches this row in-memory for 60s
+/// (see src/lib/turbocore/fx/index.ts) so quote-heavy flows don't hammer the DB.
+model FxConfig {
+  id              String   @id @default(cuid())
+  pair            String   @unique // e.g. "USD→NGN" (from→to)
+  fromCurrency    String   // USD
+  toCurrency      String   // NGN
+  /// Spread/markup applied on top of the provider's raw mid-market rate,
+  /// in basis points (150 bps = 1.5%). The customer receives
+  /// rawRate * (1 - spreadBps/10000) — a slightly worse rate.
+  spreadBps       Int      @default(150)
+  /// Platform fee charged per conversion, in basis points of the source amount.
+  platformFeeBps  Int      @default(50)
+  /// Minimum source-currency amount (minor units) for a conversion.
+  minAmountMinor  Int      @default(0)
+  /// Maximum source-currency amount (minor units) for a single conversion
+  /// (null = no cap).
+  maxAmountMinor  Int?
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([fromCurrency, toCurrency])
+}
+
+/// FX Engine — cached mid-market rate snapshots from the provider.
+/// One row per (pair, fetchedAt); the FX engine always reads the most recent
+/// non-expired snapshot for a pair, and calls refreshSnapshot() when none is
+/// available. Snapshots expire after SNAPSHOT_TTL_MS (default 5 min).
+model FxRateSnapshot {
+  id            String   @id @default(cuid())
+  pair          String   // "USD→NGN"
+  /// Raw mid-market rate returned by the provider (no spread applied).
+  rate          Float
+  /// Provider's own quote reference (audit trail).
+  providerRef   String?
+  fetchedAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  @@index([pair, expiresAt])
+  @@index([pair, fetchedAt])
+}
+
+/// BillSwift bulk bill processing job — queue-based large uploads.
+model BillSwiftBulkJob {
+  id            String   @id @default(cuid())
+  userId        String
+  reference     String   @unique
+  fileName      String?
+  totalItems    Int      @default(0)
+  processedItems Int     @default(0)
+  successCount  Int      @default(0)
+  failedCount   Int      @default(0)
+  status        String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  error         String?
+  metadata      String?  // JSON
+  items         BillSwiftBulkItem[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// Individual item in a BillSwift bulk job.
+model BillSwiftBulkItem {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           BillSwiftBulkJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rowIndex      Int
+  productCode   String
+  customer      String
+  customerName  String?
+  amountMinor   Int
+  meterType     String?
+  status        String   @default("PENDING") // PENDING | SUCCESS | FAILED
+  providerRef   String?
+  error         String?
+  transactionId String?
+  createdAt     DateTime @default(now())
+
+  @@index([jobId])
+  @@index([status])
+}
+
+/// Receipt — generated for bill payments + transfers.
+model Receipt {
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  userId        String
+  reference     String
+  type          String   // TRANSFER | BILL | AIRTIME | DATA | FUNDING | INTL
+  amountMinor   Int
+  currency      String   @default("NGN")
+  counterparty  String?
+  token         String?  // prepaid electricity token
+  metadata      String?  // JSON
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// Reconciliation run — daily drift detection between wallet cache + ledger.
+model ReconciliationRun {
+  id            String   @id @default(cuid())
+  type          String   // DAILY | MONTHLY | MANUAL
+  status        String   @default("PENDING") // PENDING | COMPLETED | FAILED
+  walletsChecked Int     @default(0)
+  driftDetected Int      @default(0)
+  driftCorrected Int     @default(0)
+  metadata      String?  // JSON of drift details
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+}
+
+// ============================================================
+// PLATFORM CONFIGURATION & PROVIDER MANAGEMENT (Phase 4 — audit-corrected)
+// ============================================================
+
+model ProviderConfig {
+  id             String   @id @default(cuid())
+  contract       String
+  providerName   String
+  displayName    String
+  mode           String   @default("mock")
+  credentialsEnc String?
+  credentialKeys String?  // JSON string[] — key names only, set at write time (avoids decrypt on list)
+  config         String?
+  priority       Int      @default(100)
+  enabled        Boolean  @default(true)
+  healthCheckUrl String?
+  healthCheckIntervalSec Int @default(300)
+  lastHealthCheckAt DateTime?
+  lastHealthStatus String?
+  lastHealthLatencyMs Int?
+  /// Cost basis points for this provider on this contract (e.g. 150 = 1.5%).
+  /// Used by the cost-aware router to pick the cheapest healthy provider
+  /// when no manual override is set. 0 = free / not applicable.
+  /// Set per contract because a provider can be cheap for airtime (50 bps)
+  /// and expensive for electricity (200 bps).
+  costBasisPoints Int @default(0)
+  /// Average settlement speed in minutes (faster = better for routing).
+  settlementSpeedMin Int @default(60)
+  /// Max transactions per minute (0 = unlimited).
+  capacityPerMin Int @default(0)
+  /// Rolling average latency in ms (updated by health tracking).
+  avgLatencyMs Int @default(0)
+  /// Optional credential expiry date. When set, a cron job flags
+  /// credentials that are approaching expiry for admin attention.
+  expiresAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  routes              ProviderRoute[]
+  healthChecks        ProviderHealthCheck[]
+  credentialVersions  ProviderCredentialVersion[]
+
+  @@unique([contract, providerName])
+  @@index([contract, enabled])
+  @@index([priority])
+}
+
+model ProviderRoute {
+  id                String   @id @default(cuid())
+  contract          String
+  tier              String   // PRIMARY | SECONDARY | FALLBACK | CANARY
+  providerConfigId  String
+  providerConfig    ProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
+  manualOverrideId  String?  // stored providerConfigId for manual override (no FK — just a string ref)
+  canaryPercent     Int      @default(0) // 0 = not canary; 1-100 = traffic percentage
+  rules             String?
+  enabled           Boolean  @default(true)
+  failoverThreshold Int      @default(3)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([contract, tier])
+  @@index([contract, enabled])
+}
+
+model ProviderHealthCheck {
+  id                String   @id @default(cuid())
+  providerConfigId  String
+  providerConfig    ProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
+  status            String
+  latencyMs         Int?
+  errorMessage      String?
+  checkedAt         DateTime @default(now())
+
+  @@index([providerConfigId, checkedAt])
+}
+
+/// Credential version history — retains prior encrypted credentials when
+/// rotated. Each row stores the OLD credentialsEnc before it was overwritten.
+/// Admins can view the history to verify which keys were active when.
+model ProviderCredentialVersion {
+  id                String   @id @default(cuid())
+  providerConfigId  String
+  providerConfig    ProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
+  credentialsEnc    String   // the OLD encrypted credentials (before rotation)
+  credentialKeys    String   // JSON string[] of key names at the time
+  changedBy         String?  // userId of the admin who rotated
+  changedByName     String?
+  createdAt         DateTime @default(now())
+
+  @@index([providerConfigId])
+  @@index([createdAt])
+}
+
+model WebhookEndpoint {
+  id            String   @id @default(cuid())
+  providerName  String
+  contract      String
+  url           String
+  secretEnc     String?
+  enabled       Boolean  @default(true)
+  maxRetries    Int      @default(5)
+  retryDelaySec Int      @default(60)
+  verified      Boolean  @default(false)
+  verifiedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([providerName, contract])
+  @@index([enabled])
+}
+
+model KycTierLimit {
+  id            String   @id @default(cuid())
+  tier          Int
+  product       String   @default("turbopay")
+  singleTxMinor Int
+  dailyTxMinor  Int
+  balanceMinor  Int
+  label         String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tier, product])
+}
+
+model AmlPolicy {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  policy      String   // JSON
+  active      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active])
+}
+
+model DeploymentProfile {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  config      String   // JSON
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ConfigVersion {
+  id            String   @id @default(cuid())
+  entityType    String
+  entityId      String
+  action        String
+  before        String?
+  after         String?
+  reason        String?
+  changedBy     String?
+  changedByName String?
+  version       Int
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([changedBy])
+  @@index([createdAt])
+}
+
+model ComplianceCase {
+  id          String    @id @default(cuid())
+  userId      String
+  amlFlagId   String?
+  type        String    // "STR" | "REVIEW" | "FREEZE" | "OTHER"
+  status      String    @default("OPEN") // OPEN | UNDER_REVIEW | FILED | CLOSED
+  severity    String    // LOW | MEDIUM | HIGH
+  description String
+  notes       String?
+  assignedTo  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([type, status])
+}
+
+/// Sanctions/watchlist entry — used by the screening engine to check
+/// user names against known sanctioned entities (OFAC SDN, UN, EU, etc.).
+/// Admins can bulk-import entries or add them manually.
+model SanctionsEntry {
+  id          String   @id @default(cuid())
+  name        String   // full name of the sanctioned entity
+  listSource  String   // OFAC_SDN | UN_SANCTIONS | EU_SANCTIONS | CUSTOM
+  country     String?  // ISO 3166-1 alpha-2 of the entity's nationality
+  entityType  String   @default("INDIVIDUAL") // INDIVIDUAL | ENTITY | VESSEL
+  reason      String?  // reason for sanctions listing
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([listSource])
+  @@index([active])
+}
+
+/// Screening result — log of every sanctions check performed.
+model ScreeningResult {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName    String   // the name that was screened
+  nationality String?
+  matches     String   // JSON array of match objects
+  riskLevel   String   // LOW | MEDIUM | HIGH
+  action      String   @default("PASS") // PASS | FLAG | BLOCK
+  screenedAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([riskLevel])
+  @@index([screenedAt])
+}
+
+// ============================================================
+// OPERATIONS PLATFORM MODELS (Phase 5)
+// ============================================================
+
+/// NotificationLog — tracks every notification attempt (SMS, email, push).
+model NotificationLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  channel     String   // SMS | EMAIL | PUSH
+  recipient   String   // phone or email (masked)
+  template    String   // template key
+  status      String   @default("SENT") // SENT | FAILED | PERMANENTLY_FAILED | PENDING
+  provider    String?  // termii | resend | mock
+  messageId   String?
+  errorMsg    String?
+  retryCount  Int      @default(0) // number of retry attempts (0 = initial send only)
+  metadata    String?  // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status, createdAt])
+  @@index([template, createdAt])
+}
+
+/// SupportNote — internal notes on customers by support staff.
+model SupportNote {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authorId    String
+  authorName  String
+  note        String
+  pinned      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+// ============================================================
+// ACCOUNT MANAGEMENT MODELS (Phase 6)
+// ============================================================
+
+/// Username change history — tracks every username a user has had.
+model UsernameHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username    String   // the previous username
+  changedAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([username])
+}
+
+/// Login history — tracks every login attempt (success + failure).
+model LoginHistory {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  identifier  String   // what they tried to log in with
+  success     Boolean
+  ip          String?
+  userAgent   String?
+  errorMessage String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+/// Recovery token — for password/PIN/username reset flows.
+model RecoveryToken {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel     String   // EMAIL | PHONE
+  target      String   // email or phone (masked)
+  code        String   // OTP code
+  purpose     String   // RESET_PASSWORD | RESET_PIN | RECOVER_USERNAME
+  consumed    Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId, purpose])
+  @@index([code, purpose])
+}
+
+// ============================================================
+// ECOSYSTEM MODELS (Phase 7 — Multi-product platform)
+// ============================================================
+
+/// Referral system — tracks referral codes, earnings, and campaigns.
+model Referral {
+  id              String   @id @default(cuid())
+  referrerId      String   // the user who refers
+  referrer        User     @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  referralCode    String   @unique
+  referredId      String?  // the user who was referred (null until they sign up)
+  status          String   @default("PENDING") // PENDING | COMPLETED | REWARDED | FRAUD
+  rewardKobo      Int      @default(0)
+  rewardType      String   @default("WALLET_CREDIT") // WALLET_CREDIT | FEE_DISCOUNT | NONE
+  campaignId      String?  // optional campaign
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  @@index([referrerId])
+  @@index([referralCode])
+  @@index([status])
+}
+
+/// Referral campaign — configurable reward rules.
+model ReferralCampaign {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String?
+  rewardKobo      Int      @default(0)
+  rewardType      String   @default("WALLET_CREDIT")
+  maxReferrals    Int      @default(0) // 0 = unlimited
+  active          Boolean  @default(true)
+  startDate       DateTime?
+  endDate         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active])
+}
+
+/// Virtual card — architecture for card issuing (no sensitive data stored).
+model VirtualCard {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        String   @default("mock") // mock | turbopay | stripe | marqeta
+  providerCardId  String?  // provider's card ID (not the PAN)
+  last4           String?  // last 4 digits only — safe to display
+  brand           String?  // VISA | MASTERCARD
+  type            String   @default("VIRTUAL") // VIRTUAL | PHYSICAL
+  status          String   @default("PENDING") // PENDING | ACTIVE | FROZEN | TERMINATED
+  balanceKobo     Int      @default(0)
+  currency        String   @default("NGN")
+  spendingLimitKobo Int?   // monthly limit
+  metadata        String?  // JSON
+
+  // ─── Card credentials (AES-256-GCM encrypted, never returned in list views) ───
+  // The full PAN and CVV are encrypted at rest using the same encryptPii()
+  // primitive used for PII. They are ONLY decrypted on-demand when the
+  // authenticated cardholder explicitly reveals card details (and the event
+  // is audit-logged). last4 is stored separately in plaintext for display.
+  panEnc          String?  // encrypted full PAN (16 digits)
+  cvvEnc          String?  // encrypted 3-digit CVV
+  expiryMonth     Int?     // 1-12 (plaintext — not sensitive on its own)
+  expiryYear      Int?     // 4-digit year (plaintext — not sensitive on its own)
+  cardholderName  String?  // name printed on the card
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transactions    VirtualCardTransaction[]
+  controls        VirtualCardControl[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// Savings product — flexible, locked, target, goal, round-up.
+model SavingsProduct {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  type            String   // FLEXIBLE | LOCKED | TARGET | GOAL | ROUND_UP | AUTO_SAVE
+  targetAmountKobo Int?
+  currentAmountKobo Int    @default(0)
+  interestRateBps Int      @default(0) // basis points per annum (100 = 1%)
+  lockUntil       DateTime?
+  autoSaveAmountKobo Int?  // for AUTO_SAVE
+  autoSaveFrequency String? // DAILY | WEEKLY | MONTHLY
+  lastAutoSaveAt  DateTime? // last time auto-save was executed
+  status          String   @default("ACTIVE") // ACTIVE | WITHDRAWN | MATURED | CANCELLED
+  metadata        String?  // JSON
+  transactions    SavingsTransaction[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+}
+
+/// Savings transaction — deposits, withdrawals, interest.
+model SavingsTransaction {
+  id              String   @id @default(cuid())
+  savingsProductId String
+  savingsProduct  SavingsProduct @relation(fields: [savingsProductId], references: [id], onDelete: Cascade)
+  type            String   // DEPOSIT | WITHDRAWAL | INTEREST
+  amountKobo      Int
+  status          String   @default("SUCCESS")
+  reference       String
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+
+  @@index([savingsProductId])
+}
+
+/// Investment product — catalog of available investments.
+model InvestmentProduct {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  type            String   // FIXED_INCOME | MUTUAL_FUND | EQUITY | BOND | TBILL
+  provider        String?  // licensed investment partner
+  minAmountKobo   Int
+  maxAmountKobo   Int?
+  expectedReturnBps Int?   // basis points per annum
+  duration        String?  // e.g. "90 days", "1 year"
+  riskLevel       String   @default("LOW") // LOW | MEDIUM | HIGH
+  active          Boolean  @default(true)
+  metadata        String?  // JSON
+  userInvestments UserInvestment[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active])
+  @@index([type])
+}
+
+/// User investment — a user's position in an investment product.
+model UserInvestment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investmentProductId String
+  investmentProduct InvestmentProduct @relation(fields: [investmentProductId], references: [id])
+  amountKobo      Int
+  status          String   @default("ACTIVE") // ACTIVE | MATURED | LIQUIDATED | CANCELLED
+  expectedReturnKobo Int?
+  maturityDate    DateTime?
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// Service management — enable/disable product modules per environment.
+model ServiceFlag {
+  id              String   @id @default(cuid())
+  service         String   @unique // wallet | transfers | bills | cards | savings | investments | international | etc.
+  displayName     String
+  description     String?
+  enabled         Boolean  @default(true)
+  config          String?  // JSON — service-specific config
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?
+}
+
+// ============================================================
+// SUPPORT & RECOVERY SYSTEM (Phase 8)
+// ============================================================
+
+/// Support ticket — customer support ticketing system.
+model SupportTicket {
+  id              String   @id @default(cuid())
+  ticketNumber    String   @unique // TP-2026-000123
+  userId          String?  // null = anonymous/guest submission
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  fullName        String
+  email           String
+  phone           String?
+  username        String?
+  category        String   // LOGIN | WALLET | TRANSFER | BILLS | KYC | SAVINGS | INVESTMENTS | CARDS | INTERNATIONAL | REFERRAL | TECHNICAL | OTHER
+  subcategory     String?
+  priority        String   @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status          String   @default("NEW") // NEW | OPEN | PENDING_CUSTOMER | PENDING_INTERNAL | IN_PROGRESS | ESCALATED | RESOLVED | CLOSED
+  subject         String
+  description     String
+  assignedTo      String?  // admin userId
+  metadata        String?  // JSON — related transaction IDs, etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+
+  messages        SupportTicketMessage[]
+  attachments     SupportTicketAttachment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([category, priority])
+  @@index([assignedTo])
+  @@index([createdAt])
+}
+
+/// Ticket message — communication history within a ticket.
+model SupportTicketMessage {
+  id              String   @id @default(cuid())
+  ticketId        String
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId        String?  // null = customer (guest), admin userId for staff
+  authorName      String
+  authorRole      String   @default("CUSTOMER") // CUSTOMER | AGENT | SYSTEM
+  message         String
+  isInternal      Boolean  @default(false) // internal notes not visible to customer
+  createdAt       DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+/// Ticket attachment — file uploads (screenshots, documents).
+model SupportTicketAttachment {
+  id              String   @id @default(cuid())
+  ticketId        String
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  messageId       String?  // optional link to a specific message
+  fileName        String
+  filePath        String   // relative path in /public/uploads/tickets/
+  fileType        String   // image/png | application/pdf | etc.
+  fileSizeBytes   Int
+  uploadedBy      String   // userId or "guest"
+  createdAt       DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+/// User communication preferences.
+model CommunicationPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailEnabled    Boolean  @default(true)
+  smsEnabled      Boolean  @default(true)
+  inAppEnabled    Boolean  @default(true)
+  ticketUpdates   Boolean  @default(true)
+  transactionAlerts Boolean @default(true)
+  securityAlerts  Boolean  @default(true)
+  promotional     Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+/// Knowledge base article — self-service help center.
+model HelpArticle {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  content         String   // markdown or HTML
+  category        String   // GETTING_STARTED | REGISTRATION | LOGIN | RECOVERY | WALLET | TRANSFERS | BILLS | KYC | SAVINGS | INVESTMENTS | CARDS | INTERNATIONAL | SECURITY | FAQ
+  tags            String?  // JSON array
+  status          String   @default("PUBLISHED") // DRAFT | PUBLISHED | UNPUBLISHED
+  version         Int      @default(1)
+  views           Int      @default(0)
+  helpfulCount    Int      @default(0)
+  unhelpfulCount  Int      @default(0)
+  authorId        String?
+  authorName      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category, status])
+  @@index([slug])
+}
+
+/// Recovery attempt — tracks every recovery request for audit.
+model RecoveryAttempt {
+  id              String   @id @default(cuid())
+  userId          String?
+  identifier      String   // what they tried
+  recoveryType    String   // FORGOT_PASSWORD | FORGOT_USERNAME | FORGOT_PIN | FORGOT_PHONE | FORGOT_EMAIL | ACCOUNT_LOCKED | LOST_DEVICE | SUSPICIOUS_LOGIN
+  channel         String?  // EMAIL | PHONE | SUPPORT
+  status          String   @default("INITIATED") // INITIATED | OTP_SENT | VERIFIED | COMPLETED | FAILED | EXPIRED
+  ip              String?
+  userAgent       String?
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  @@index([userId, createdAt])
+  @@index([recoveryType, status])
+}
+
+// ============================================================
+// REWARDS, VOUCHERS, CARDS, STATEMENTS, KYC (Phase 9)
+// ============================================================
+
+/// Voucher — configurable discount/reward with strict business rules.
+/// Vouchers NEVER function as cash — they apply discounts to eligible products only.
+model Voucher {
+  id              String   @id @default(cuid())
+  code            String   @unique // user-facing voucher code
+  campaignName    String
+  type            String   // DISCOUNT | CASHBACK | FEE_WAIVER | PERCENT_OFF | FLAT_OFF
+  valueKobo       Int      @default(0) // for FLAT_OFF: the discount amount in kobo
+  valueBps        Int      @default(0) // for PERCENT_OFF: basis points (100 = 1%)
+  maxDiscountKobo Int?     // cap on the discount amount
+  minSpendKobo    Int      @default(0) // minimum purchase amount to qualify
+  
+  // ─── Eligibility Rules (all configurable, no code changes) ───
+  eligibleProducts String? // JSON array: ["AIRTIME","DATA","BILL_ELECTRICITY",...]
+  excludedProducts String? // JSON array: ["WALLET_FUNDING","WITHDRAWAL",...]
+  applicableKycTiers String? // JSON array: [1,2,3] — which KYC tiers can use this
+  newCustomerOnly Boolean  @default(false)
+  returningOnly   Boolean  @default(false)
+  referralRequired Boolean @default(false)
+  oneTimeUse      Boolean  @default(true)
+  
+  // ─── Usage Limits ───
+  usageLimit      Int      @default(0) // 0 = unlimited total uses
+  perUserLimit    Int      @default(1) // max uses per user
+  campaignBudgetKobo Int?  // total discount budget for the campaign
+  
+  // ─── Validity ───
+  startDate       DateTime?
+  endDate         DateTime? // expiry date
+  active          Boolean  @default(true)
+  
+  // ─── Restrictions ───
+  currencyRestriction String? // e.g. "NGN" only
+  regionRestriction String?  // e.g. "NG" only
+  providerRestriction String? // e.g. "baxi" only
+  
+  // ─── Tracking ───
+  totalUsed       Int      @default(0)
+  totalDiscountKobo Int    @default(0)
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  redemptions     VoucherRedemption[]
+  userRewards     UserReward[]
+
+  @@index([active, endDate])
+  @@index([code])
+}
+
+/// Voucher redemption — tracks each time a voucher is used.
+model VoucherRedemption {
+  id              String   @id @default(cuid())
+  voucherId       String
+  voucher         Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  userId          String
+  transactionId   String?  // the transaction it was applied to
+  discountAppliedKobo Int
+  status          String   @default("SUCCESS") // SUCCESS | FAILED | REVERSED
+  createdAt       DateTime @default(now())
+
+  @@index([voucherId, userId])
+  @@index([userId])
+}
+
+/// User reward — vouchers, cashback, tier bonuses, campaign rewards assigned
+/// to a specific user. Populated by the TurboCore rewards engine
+/// (`src/lib/turbocore/rewards`), the referrals service, and the vouchers service.
+model UserReward {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voucherId             String?
+  voucher               Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  type                  String   // VOUCHER | REFERRAL_BONUS | CASHBACK | TIER_BONUS | CAMPAIGN_REWARD
+  title                 String
+  description           String?
+  valueKobo             Int      @default(0)
+  status                String   @default("AVAILABLE") // AVAILABLE | USED | EXPIRED | REVOKED
+  expiresAt             DateTime?
+  metadata              String?  // JSON
+  // Rewards-engine fields — enable idempotent cashback + tier-bonus posting.
+  sourceTransactionId   String?  // for CASHBACK: the Transaction that earned it
+  ruleId                String?  // for CASHBACK: the RewardRule id used (future)
+  tier                  Int?     // for TIER_BONUS: the KYC tier that earned the bonus
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, type])
+  @@index([sourceTransactionId, type])
+  @@index([userId, type, tier])
+}
+
+/// Virtual card transaction — spending on the card.
+model VirtualCardTransaction {
+  id              String   @id @default(cuid())
+  cardId          String
+  card            VirtualCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type            String   // FUNDING | SPEND | REFUND | FEE | WITHDRAWAL
+  amountKobo      Int
+  currency        String   @default("NGN")
+  merchant        String?
+  merchantCategory String? // MCC code or category name
+  status          String   @default("SUCCESS") // SUCCESS | PENDING | FAILED | REVERSED
+  providerRef     String?
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+
+  @@index([cardId, createdAt])
+  @@index([status])
+}
+
+/// Virtual card control — per-card spending controls.
+model VirtualCardControl {
+  id              String   @id @default(cuid())
+  cardId          String
+  card            VirtualCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  onlinePaymentsEnabled   Boolean @default(true)
+  internationalEnabled    Boolean @default(false)
+  atmEnabled              Boolean @default(false)
+  dailyLimitKobo          Int?
+  monthlyLimitKobo        Int?
+  merchantCategories      String? // JSON: { allowed: [...], blocked: [...] }
+  metadata                String?
+  updatedAt               DateTime @updatedAt
+
+  @@unique([cardId])
+}
+
+/// Address verification — proof of address for enhanced KYC.
+model AddressVerification {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Address fields
+  residentialAddress String
+  state           String
+  lga             String? // Local Government Area
+  city            String
+  postalCode      String?
+  country         String   @default("Nigeria")
+  // Document
+  documentType    String   // UTILITY_BILL | BANK_STATEMENT | TENANCY_AGREEMENT | GOVT_RESIDENCE
+  documentPath    String   // path to uploaded document in /public/uploads/kyc/
+  documentUploadedAt DateTime @default(now())
+  // Verification
+  status          String   @default("PENDING") // PENDING | APPROVED | REJECTED | RESUBMIT
+  reviewerId      String?
+  reviewerName    String?
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  // Audit
+  metadata        String?  // JSON — full audit trail
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status])
+}
+
+/// Statement request — user-generated account statements.
+model StatementRequest {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  format          String   // PDF | CSV | EXCEL
+  fromDate        DateTime
+  toDate          DateTime
+  filters         String?  // JSON — category, status, amount filters
+  status          String   @default("GENERATED") // GENERATED | EMAILED | FAILED
+  filePath        String?  // path to generated file
+  emailTo         String?  // email address if emailed
+  emailStatus     String?  // SENT | FAILED | PENDING
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ============================================================
+// DISPUTES, SCHEDULED PAYMENTS, NOTIFICATIONS (Phase 10)
+// ============================================================
+
+/// Dispute — user-reported issue with a transaction (failed transfer, incorrect debit, card dispute, bill issue).
+model Dispute {
+  id              String   @id @default(cuid())
+  disputeNumber   String   @unique // DSP-2026-000123
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionId   String?  // the disputed transaction (if applicable)
+  type            String   // FAILED_TRANSFER | INCORRECT_DEBIT | CARD_DISPUTE | BILL_PAYMENT_ISSUE | UNAUTHORIZED_TRANSACTION | DUPLICATE_CHARGE | OTHER
+  priority        String   @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status          String   @default("OPEN") // OPEN | UNDER_REVIEW | EVIDENCE_REQUIRED | RESOLVED_FAVOUR_USER | RESOLVED_FAVOUR_PLATFORM | CLOSED | ESCALATED
+  subject         String
+  description     String
+  amountDisputedKobo Int?
+  resolution      String?
+  resolutionNotes String?
+  assignedTo      String?  // admin userId
+  slaDueAt        DateTime? // SLA deadline
+  metadata        String?  // JSON — evidence, provider refs, etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+
+  messages        DisputeMessage[]
+  attachments     DisputeAttachment[]
+
+  @@index([userId, status])
+  @@index([status, priority])
+  @@index([assignedTo])
+  @@index([createdAt])
+}
+
+/// Dispute message — communication within a dispute.
+model DisputeMessage {
+  id              String   @id @default(cuid())
+  disputeId       String
+  dispute         Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  authorId        String?
+  authorName      String
+  authorRole      String   @default("CUSTOMER") // CUSTOMER | AGENT | SYSTEM
+  message         String
+  isInternal      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([disputeId, createdAt])
+}
+
+/// Dispute attachment — evidence files.
+model DisputeAttachment {
+  id              String   @id @default(cuid())
+  disputeId       String
+  dispute         Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  fileName        String
+  filePath        String
+  fileType        String
+  fileSizeBytes   Int
+  uploadedBy      String
+  createdAt       DateTime @default(now())
+
+  @@index([disputeId])
+}
+
+/// Scheduled payment — recurring or future-dated transfers/bill payments.
+model ScheduledPayment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String   // TRANSFER | BILL_PAYMENT | AIRTIME | DATA
+  frequency       String   // ONCE | DAILY | WEEKLY | MONTHLY | CUSTOM
+  nextExecutionAt DateTime
+  endDate         DateTime? // null = until cancelled
+  customDates     String?  // JSON array of ISO dates for CUSTOM frequency
+  // Payment details
+  recipient       String   // account number, phone, or biller customer ref
+  recipientName   String?
+  bankName        String?
+  amountKobo      Int
+  description     String?
+  // Bill-specific
+  productCode     String?
+  meterType       String?
+  // State
+  status          String   @default("ACTIVE") // ACTIVE | PAUSED | COMPLETED | CANCELLED | FAILED
+  lastExecutedAt  DateTime?
+  executionCount  Int      @default(0)
+  failureCount    Int      @default(0)
+  lastError       String?
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([nextExecutionAt])
+  @@index([status, nextExecutionAt])
+}
+
+/// Payment template — saved payment configurations for quick repeat.
+model PaymentTemplate {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String   // user-friendly template name
+  type            String   // TRANSFER | BILL_PAYMENT | AIRTIME | DATA
+  // Transfer fields
+  recipient       String?
+  recipientName   String?
+  bankName        String?
+  bankCode        String?
+  // Bill fields
+  productCode     String?
+  productName     String?
+  customerRef     String?
+  meterType       String?
+  // Common
+  defaultAmountKobo Int?
+  description     String?
+  // Favoriting
+  isFavorite      Boolean  @default(false)
+  lastUsedAt      DateTime?
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, type])
+  @@index([userId, isFavorite])
+}
+
+/// In-app notification — user inbox.
+model InAppNotification {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String   // TRANSACTION | SECURITY | KYC | SUPPORT | PROMOTIONAL | SYSTEM | DISPUTE | REFERRAL
+  title           String
+  message         String
+  priority        String   @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  read            Boolean  @default(false)
+  readAt          DateTime?
+  actionUrl       String?  // optional deep link (e.g., /history?ref=TP-123)
+  actionLabel     String?  // optional button text
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+
+  @@index([userId, read, createdAt])
+  @@index([userId, type, createdAt])
+}
+
+/// Live chat conversation — one active per user.
+model ChatConversation {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          String   @default("ACTIVE") // ACTIVE | CLOSED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  messages        ChatMessage[]
+
+  @@index([userId, status])
+}
+
+/// Message in a chat conversation.
+model ChatMessage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  conversation    ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorName      String
+  authorRole      String   @default("CUSTOMER") // CUSTOMER | AI | AGENT
+  body            String
+  attachments     String?  // JSON array of { url, fileName, fileType, fileSize }
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/// A device a user has signed in from. Used for device recognition,
+/// trusted-device management, and the Security Center timeline.
+model Device {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint  String   // sha256(UA + /24 IP subnet) — stable per device+network
+  deviceName   String   // parsed from UA, e.g. "Chrome on macOS"
+  ip           String?
+  trusted      Boolean  @default(false)
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @updatedAt
+
+  @@unique([userId, fingerprint])
+  @@index([userId])
+}
+
+/// Unified security event for the Security Center timeline.
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // LOGIN_SUCCESS | LOGIN_FAILED | DEVICE_NEW | DEVICE_RECOGNIZED | SESSION_REVOKED | PIN_CHANGED | PASSWORD_CHANGED | STEP_UP_REQUIRED | STEP_UP_PASSED | STEP_UP_FAILED
+  ip        String?
+  userAgent String?
+  metadata  String?  // JSON string
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Optional security question for secondary verification.
+model SecurityQuestion {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   String
+  answerHash String   // sha256 of normalised answer
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// User testimonial — displayed on the landing page. Managed by admins.
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  role      String   // e.g. "Student", "Small business owner"
+  location  String?  // e.g. "Lagos"
+  quote     String
+  rating    Int      @default(5) // 1-5 stars
+  avatarUrl String?
+  approved  Boolean  @default(false) // only approved testimonials show on the landing page
+  display   Boolean  @default(true)  // admin can hide without deleting
+  sortOrder Int      @default(100)   // lower = earlier in the list
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([approved, display, sortOrder])
+}
+
+/// Transactional Outbox Event — written INSIDE the same Prisma tx as the
+/// domain state change (ledger post, transaction status flip, etc.) so the
+/// event is guaranteed to be published if and only if the tx commits.
+///
+/// A cron worker (`/api/cron/outbox-publisher`) drains PENDING rows and
+/// publishes each via the TurboCore event bus. Failed publishes are marked
+/// FAILED (retried manually or by a future sweep).
+///
+/// This eliminates the dual-write problem: previously the pipeline published
+/// `payment.succeeded` via the in-process event bus AFTER the tx committed —
+/// if the process crashed between commit and publish, the event was lost.
+/// With the outbox, the event row commits atomically with the state change,
+/// so the worker will pick it up on the next tick.
+model OutboxEvent {
+  id            String    @id @default(cuid())
+  /// Coarse aggregate type — "transaction" | "wallet" | "kyc" | "card" | …
+  aggregateType String
+  /// The entity ID the event refers to (transactionId / walletId / userId / …).
+  aggregateId   String
+  /// Dotted event type — "payment.succeeded" | "wallet.funded" | "kyc.verified" | …
+  eventType     String
+  /// JSON-stringified event payload (read by the outbox publisher).
+  payload       String
+  /// PENDING → PUBLISHED (ok) | FAILED (dead-letter after retries).
+  status        String    @default("PENDING")
+  createdAt     DateTime  @default(now())
+  publishedAt   DateTime?
+
+  @@index([status, createdAt])
+}
+
+/// Payment Intent — separates "intent to pay" from "execution of payment".
+///
+/// The Turbopay reference document separates these two phases so the client
+/// can poll a payment's lifecycle independently of the financial transaction
+/// record (Transaction). The debit pipeline creates a PaymentIntent at the
+/// START (status=PENDING), marks it PROCESSING before the hold, SUCCEEDED on
+/// success, or FAILED on failure.
+///
+/// This is non-breaking: the existing flow continues to work, the intent is
+/// just an additional record that tracks the lifecycle. It enables:
+///   - Status polling (client checks if a payment is still processing)
+///   - Intent cancellation (user cancels a PENDING intent before execution)
+///   - Analytics (intent → execution → success/failure funnel)
+model PaymentIntent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // AIRTIME | DATA | BILL_ELECTRICITY | BILL_UTILITY | TRANSFER | CARD_FUND
+  amountKobo  Int
+  currency    String   @default("NGN")
+  status      String   @default("PENDING") // PENDING | PROCESSING | SUCCEEDED | FAILED | CANCELLED
+  recipient   String?  // phone, account number, or meter number
+  metadata    String?  // JSON
+  idempotencyKey String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([idempotencyKey])
+}
+
+/// Settlement Queue — failed external transfers awaiting retry.
+///
+/// When an external bank transfer fails transiently (5xx, timeout, network
+/// error) or the orchestrator crashes after the provider returned a reference
+/// but before the confirm step committed, the transaction is enqueued here for
+/// the settlement worker to reconcile.
+///
+/// The `/api/cron/settlement-worker` route polls the queue every 5 minutes
+/// and calls `settlementService.processBatch()`:
+///   • If a `providerRef` exists → query the provider for the transfer status
+///     (SUCCESS → confirm the Transaction + mark SETTLED; FAILED → reverse
+///     the ledger entry + mark FAILED; PENDING → retry with exponential
+///     backoff).
+///   • If no `providerRef` (provider call never completed) → increment the
+///     attempt counter with backoff. After `maxAttempts`, mark FAILED. The
+///     stuck-transaction sweeper handles the actual ledger reversal for the
+///     no-providerRef case (it is the authoritative path for that scenario —
+///     see `/api/cron/stuck-transactions`).
+///
+/// The queue is an ADDITIONAL safety net layered on top of the existing
+/// stuck-transaction sweeper. The sweeper still catches PENDING rows that
+/// have aged past the SLA window; when it sees a stuck row WITH a providerRef
+/// it now ENQUEUES it here (instead of just auditing CRITICAL) so the
+/// settlement worker can run the provider status check on the next tick.
+model SettlementQueue {
+  id              String   @id @default(cuid())
+  transactionId   String   @unique
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  providerRef     String?
+  status          String   @default("PENDING") // PENDING | PROCESSING | SETTLED | FAILED | RETRYING
+  attempts        Int      @default(0)
+  maxAttempts     Int      @default(5)
+  nextRetryAt     DateTime?
+  lastError       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, nextRetryAt])
+}
+
+/// Cron leader-election lock — ensures only ONE instance runs each cron job
+/// at a time, even with multiple app instances behind a load balancer.
+/// The cron route calls `acquireCronLock(name)` at the start; if it returns
+/// false, another instance is already running this cron, so it exits early.
+/// On completion (or crash after TTL expiry), the lock is released.
+model CronLock {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g. "outbox-publisher", "stuck-transactions"
+  lockedBy    String?  // instance ID (hostname + PID)
+  lockedAt    DateTime?
+  expiresAt   DateTime? // TTL — auto-released after this time even if the process crashes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Multi-currency wallet — each user can hold balances in multiple currencies.
+/// The primary NGN wallet (Wallet model) remains the main wallet for backward
+/// compatibility. CurrencyWallet adds USD, EUR, GBP, CAD, AUD, KES, GHS, ZAR.
+model CurrencyWallet {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency      String   // USD | EUR | GBP | CAD | AUD | KES | GHS | ZAR
+  balanceMinor  Int      @default(0) // cache; recomputed from ledger
+  lockedMinor   Int      @default(0) // amount locked in pending transfers
+  status        String   @default("ACTIVE") // ACTIVE | FROZEN | CLOSED
+  version       Int      @default(0) // optimistic concurrency
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ledgerEntries  CurrencyLedgerEntry[]
+
+  @@unique([userId, currency])
+  @@index([userId])
+  @@index([status])
+}
+
+/// International beneficiary — saved recipients for cross-border transfers.
+model InternationalBeneficiary {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  country         String   // 2-letter ISO code
+  bankName        String?
+  accountNumber   String?  // account number or IBAN
+  swiftCode       String?  // SWIFT/BIC code
+  routingNumber   String?  // routing number (US/CA)
+  mobileWallet    String?  // mobile money provider + number
+  nickname        String?
+  currency        String   // preferred currency for this beneficiary
+  isFavourite     Boolean  @default(false)
+  verificationStatus String @default("UNVERIFIED") // UNVERIFIED | VERIFIED | FAILED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, isFavourite])
+}
+
+/// System-wide singleton for cached aggregate values (total float, total
+/// users, etc.) that are too expensive to compute on every admin request.
+/// Updated by a periodic refresh job, read by admin dashboards.
+model SystemMetric {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "total_float_kobo", "active_users"
+  value       String   // stored as string, parsed by caller
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================================
+// PAYMENT ORCHESTRATION MODELS
+// ============================================================
+
+/// Payment Flow Execution Log — records every payment orchestration attempt.
+/// Stores routing decisions, provider responses, failover attempts, and timing.
+/// Used for audit trail, analytics, and debugging payment flows.
+model PaymentFlowLog {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reference       String   @unique // Payment reference (TP-XXXXXXXX)
+  contract        String   // walletFunding | localTransfer | billPayment | exchangeRate
+  amountKobo      Int
+  currency        String   @default("NGN")
+  country         String?
+  status          String   @default("PENDING") // PENDING | SUCCESS | FAILED | TIMEOUT
+  // Routing decision details
+  selectedProvider    String?  // Provider that was selected
+  selectionReason     String?  // Why this provider was selected
+  selectionScore      Int?     // Routing score (0-100)
+  candidatesCount     Int?     // Total candidates considered
+  attemptsCount       Int?     // Number of providers attempted
+  // Provider response
+  providerRef         String?  // Provider's transaction reference
+  providerStatus      String?  // Provider's response status
+  providerError       String?  // Provider's error message (if failed)
+  // Timing
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  durationMs      Int?     // Total execution time in milliseconds
+  // Metadata
+  metadata        String?  // JSON string for additional context
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([contract, status, createdAt])
+  @@index([selectedProvider, status])
+  @@index([createdAt])
+}
+
+/// Provider Capability Declaration — DB-driven capability matrix.
+/// Stores which capabilities each provider supports. Can be used instead of
+/// (or in addition to) code-driven capabilities for dynamic configuration.
+model ProviderCapability {
+  id              String   @id @default(cuid())
+  providerName    String
+  capability      String   // collection | transfer | bill_payment | airtime | data | fx | ...
+  supported       Boolean  @default(true)
+  // Which countries/currencies this capability supports (JSON arrays)
+  supportedCountries String? // JSON string[]
+  supportedCurrencies String? // JSON string[]
+  // Cost profile for this capability
+  percentageFeeBps Int     @default(0)
+  fixedFeeMinor   Int      @default(0)
+  // Rate limits
+  requestsPerMinute Int?
+  maxTransferAmount Int?
+  // Metadata
+  version         String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([providerName, capability])
+  @@index([providerName])
+  @@index([capability])
+}
+
+/// Payment Routing Decision Log — stores every routing decision for analytics.
+/// Used to analyze provider selection patterns, identify bottlenecks, and
+/// optimize routing rules.
+model PaymentRoutingDecision {
+  id              String   @id @default(cuid())
+  userId          String?
+  contract        String
+  amountKobo      Int
+  currency        String
+  country         String?
+  // Decision details
+  selectedProvider    String
+  selectionReason     String
+  selectionScore      Int
+  candidatesCount     Int
+  eliminatedCount     Int
+  // Factor scores (JSON)
+  factorScores        String?  // JSON: { health: 95, latency: 80, cost: 70, ... }
+  // Timing
+  decisionMs      Int      // Time taken to make the decision (ms)
+  createdAt       DateTime @default(now())
+
+  @@index([contract, createdAt])
+  @@index([selectedProvider, createdAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// PAYMENT LINKS — Generate shareable payment links for customers
+// ============================================================
+
+model PaymentLink {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Link details
+  reference       String   @unique // PL-XXXXXXXX (unique link reference)
+  title           String   // Display title (e.g. "Payment for Invoice #123")
+  description     String?  // Optional description
+  amountKobo      Int      // Amount in kobo (0 = user enters amount)
+  currency        String   @default("NGN")
+
+  // Configuration
+  allowCustomAmount Boolean @default(false) // User can enter their own amount
+  minAmountKobo   Int?     // Minimum amount (if custom allowed)
+  maxAmountKobo   Int?     // Maximum amount (if custom allowed)
+  maxUses         Int?     // Maximum number of times link can be used (null = unlimited)
+  useCount        Int      @default(0) // Times link has been used
+  expiresAt       DateTime? // Link expiry (null = never expires)
+
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE | PAUSED | EXPIRED | DEACTIVATED
+
+  // Metadata
+  metadata        String?  // JSON string for custom data
+
+  // Provider reference (if linked to a specific provider payment)
+  providerRef     String?
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Payments made via this link
+  payments        PaymentLinkPayment[]
+
+  @@index([userId])
+  @@index([reference])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentLinkPayment {
+  id              String   @id @default(cuid())
+  paymentLinkId   String
+  paymentLink     PaymentLink @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
+
+  // Payment details
+  reference       String   @unique // TP-XXXXXXXX (transaction reference)
+  amountKobo      Int
+  feeKobo         Int      @default(0)
+  status          String   @default("PENDING") // PENDING | SUCCESS | FAILED
+  payerEmail      String?
+  payerName       String?
+
+  // Provider reference
+  provider        String?
+  providerRef     String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([paymentLinkId])
+  @@index([reference])
+  @@index([status])
+  @@index([createdAt])
+}

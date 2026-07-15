@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Turbopay logo">
+  <defs>
+    <linearGradient id="tpGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16a37b"/>
+      <stop offset="0.55" stop-color="#0b7d5e"/>
+      <stop offset="1" stop-color="#06543f"/>
+    </linearGradient>
+    <linearGradient id="tpAmber" x1="10" y1="14" x2="44" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#tpGrad)"/>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="black" fill-opacity="0.06"/>
+  <!-- T crossbar -->
+  <rect x="18" y="17" width="28" height="5.5" rx="2.75" fill="#ffffff"/>
+  <!-- Lightning bolt stem forming the T vertical, conveys turbo speed -->
+  <path d="M34.5 22.5 L26.5 39.5 L31.6 39.5 L27.5 49.5 L40 31.5 L34.2 31.5 L38.2 22.5 Z" fill="url(#tpAmber)"/>
+  <!-- motion speed lines -->
+  <rect x="9"  y="26" width="6" height="3" rx="1.5" fill="#ffffff" fill-opacity="0.55"/>
+  <rect x="7"  y="33" width="8" height="3" rx="1.5" fill="#ffffff" fill-opacity="0.75"/>
+  <rect x="9"  y="40" width="6" height="3" rx="1.5" fill="#ffffff" fill-opacity="0.55"/>
+</svg>

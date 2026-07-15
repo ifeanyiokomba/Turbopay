@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+download
+agent-ctx
+db/*.db
+db/*.db-journal
+*.log
+*.md
+vercel.json
+.env
+.env.local
+.env.production
+README.md

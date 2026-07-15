@@ -1,0 +1,285 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ============================================================
+   TURBOPAY BRAND SYSTEM
+   Primary: Deep Emerald (Naira prosperity, trust, growth)
+   Accent:  Amber/Gold (energy, premium, speed/turbo)
+   ============================================================ */
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.99 0.004 145);
+  --foreground: oklch(0.21 0.02 160);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.02 160);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.02 160);
+
+  /* Deep emerald */
+  --primary: oklch(0.48 0.13 162);
+  --primary-foreground: oklch(0.99 0.01 150);
+
+  --secondary: oklch(0.96 0.012 150);
+  --secondary-foreground: oklch(0.3 0.04 162);
+
+  --muted: oklch(0.96 0.008 150);
+  --muted-foreground: oklch(0.52 0.02 160);
+
+  /* Amber/gold accent */
+  --accent: oklch(0.92 0.06 80);
+  --accent-foreground: oklch(0.35 0.09 70);
+
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --success: oklch(0.62 0.14 155);
+  --success-foreground: oklch(0.99 0.01 150);
+
+  --warning: oklch(0.75 0.15 70);
+  --warning-foreground: oklch(0.3 0.06 70);
+
+  --border: oklch(0.92 0.01 150);
+  --input: oklch(0.92 0.01 150);
+  --ring: oklch(0.48 0.13 162);
+
+  --chart-1: oklch(0.48 0.13 162);
+  --chart-2: oklch(0.75 0.15 70);
+  --chart-3: oklch(0.62 0.14 155);
+  --chart-4: oklch(0.7 0.13 200);
+  --chart-5: oklch(0.58 0.22 27);
+
+  --sidebar: oklch(0.21 0.03 165);
+  --sidebar-foreground: oklch(0.95 0.01 150);
+  --sidebar-primary: oklch(0.62 0.14 155);
+  --sidebar-primary-foreground: oklch(0.99 0.01 150);
+  --sidebar-accent: oklch(0.27 0.04 165);
+  --sidebar-accent-foreground: oklch(0.95 0.01 150);
+  --sidebar-border: oklch(0.3 0.04 165);
+  --sidebar-ring: oklch(0.62 0.14 155);
+}
+
+.dark {
+  --background: oklch(0.16 0.015 165);
+  --foreground: oklch(0.96 0.008 150);
+
+  --card: oklch(0.21 0.02 165);
+  --card-foreground: oklch(0.96 0.008 150);
+
+  --popover: oklch(0.21 0.02 165);
+  --popover-foreground: oklch(0.96 0.008 150);
+
+  --primary: oklch(0.72 0.14 162);
+  --primary-foreground: oklch(0.16 0.03 165);
+
+  --secondary: oklch(0.27 0.03 165);
+  --secondary-foreground: oklch(0.96 0.008 150);
+
+  --muted: oklch(0.25 0.02 165);
+  --muted-foreground: oklch(0.7 0.02 160);
+
+  --accent: oklch(0.35 0.08 70);
+  --accent-foreground: oklch(0.92 0.08 80);
+
+  --destructive: oklch(0.68 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --success: oklch(0.72 0.14 155);
+  --success-foreground: oklch(0.16 0.03 165);
+
+  --warning: oklch(0.8 0.15 70);
+  --warning-foreground: oklch(0.2 0.05 70);
+
+  --border: oklch(0.3 0.02 165);
+  --input: oklch(0.3 0.02 165);
+  --ring: oklch(0.72 0.14 162);
+
+  --chart-1: oklch(0.72 0.14 162);
+  --chart-2: oklch(0.8 0.15 70);
+  --chart-3: oklch(0.68 0.13 200);
+  --chart-4: oklch(0.72 0.14 155);
+  --chart-5: oklch(0.68 0.2 25);
+
+  --sidebar: oklch(0.13 0.02 165);
+  --sidebar-foreground: oklch(0.95 0.01 150);
+  --sidebar-primary: oklch(0.72 0.14 162);
+  --sidebar-primary-foreground: oklch(0.16 0.03 165);
+  --sidebar-accent: oklch(0.22 0.025 165);
+  --sidebar-accent-foreground: oklch(0.95 0.01 150);
+  --sidebar-border: oklch(0.25 0.02 165);
+  --sidebar-ring: oklch(0.72 0.14 162);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* ============================================================
+   TURBOPAY UTILITY LAYER
+   ============================================================ */
+@layer utilities {
+  .tp-grain {
+    background-image:
+      radial-gradient(circle at 1px 1px, oklch(0.48 0.13 162 / 0.05) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+
+  /* The signature wallet gradient card */
+  .tp-wallet-card {
+    background:
+      radial-gradient(120% 120% at 0% 0%, oklch(0.62 0.14 155) 0%, oklch(0.48 0.13 162) 45%, oklch(0.34 0.09 165) 100%);
+    color: oklch(0.99 0.01 150);
+  }
+  .dark .tp-wallet-card {
+    background:
+      radial-gradient(120% 120% at 0% 0%, oklch(0.42 0.1 162) 0%, oklch(0.32 0.08 165) 50%, oklch(0.22 0.05 165) 100%);
+  }
+
+  .tp-amber-grad {
+    background: linear-gradient(135deg, oklch(0.85 0.16 75) 0%, oklch(0.7 0.16 60) 100%);
+  }
+
+  .tp-glass {
+    backdrop-filter: blur(12px) saturate(140%);
+    background: color-mix(in oklch, var(--card) 80%, transparent);
+  }
+
+  /* Naira-aware number styling */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .animate-in-fade {
+    animation: tp-fade 0.4s ease both;
+  }
+  @keyframes tp-fade {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@keyframes wordmarkReveal {
+  0%, 100% { opacity: 0.3; transform: translateY(8px); }
+  50% { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Loading screen animations ────────────────────────────────
+   A clean, professional wordmark reveal. No beam, no dots, no flicker,
+   no underline — just the letters fading + rising in sequence, then a
+   soft sheen sweep on loop.
+   ─────────────────────────────────────────────────────────────── */
+
+/* Fade-rise: each letter fades in + rises 6px, staggered left-to-right.
+   No blur (blur caused a "broken name" visual glitch on some browsers). */
+@keyframes tp-fade-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Sheen: a single soft emerald gradient pass across the word on loop.
+   Long pause between sweeps for a premium feel. */
+@keyframes tp-sheen {
+  0%   { background-position: 150% 0; opacity: 0; }
+  10%  { opacity: 1; }
+  40%  { background-position: -50% 0; opacity: 1; }
+  55%  { opacity: 0; }
+  100% { background-position: -50% 0; opacity: 0; }
+}
+
+/* ─── RTL Support ─────────────────────────────────────────────
+   Arabic (ar) locale uses RTL layout. Tailwind v4 handles
+   logical properties automatically when dir="rtl" is set on <html>.
+   These utilities handle edge cases Tailwind doesn't cover. */
+
+/* Arabic font family override */
+html[dir="rtl"] {
+  --font-sans: var(--font-noto-arabic), var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Flip directional icons in RTL */
+html[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* Ensure LTR-only elements stay LTR in RTL context */
+html[dir="rtl"] .no-flip {
+  direction: ltr;
+  text-align: left;
+}
