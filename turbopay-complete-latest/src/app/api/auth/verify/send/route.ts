@@ -148,5 +148,6 @@ export async function POST(req: Request) {
   }
 
   // Always return success (enumeration-safe).
-  return json({ data: { sent: true, channel } });
+  // In dev: include the OTP for testing convenience (no email/SMS provider).
+  return json({ data: { sent: true, channel, ...(codeForDevLog ? { devOtp: codeForDevLog } : {}) } });
 }

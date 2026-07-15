@@ -19,20 +19,20 @@ const patchSchema = z.object({
 });
 
 const PROVIDER_MANIFEST: Record<string, string[]> = {
-  monnify: ["apiKey", "secretKey", "contractCode"],
-  paystack: ["secretKey"],
-  stripe: ["secretKey", "publishableKey", "webhookSecret"],
-  remita: ["apiKey", "merchantId", "serviceTypeId", "secretKey"],
-  quickteller: ["apiKey", "clientSecret", "merchantCode"],
-  baxi: ["apiKey"],
-  "gmail-smtp": ["user", "pass"],
-  termii: ["apiKey"],
-  resend: ["apiKey"],
-  dojah: ["appId", "publicKey", "privateKey"],
-  wise: ["token"],
-  flutterwave: ["clientId", "clientSecret"],
-  onafriq: ["apiKey"],
-  otpdev: ["apiKey"],
+  monnify: ["apiKey", "secretKey", "contractCode", "baseUrl"],
+  paystack: ["secretKey", "publicKey", "baseUrl"],
+  stripe: ["secretKey", "publishableKey", "webhookSecret", "baseUrl"],
+  remita: ["apiKey", "merchantId", "serviceTypeId", "secretKey", "baseUrl"],
+  quickteller: ["apiKey", "clientSecret", "merchantCode", "baseUrl", "authBaseUrl"],
+  baxi: ["apiKey", "baseUrl"],
+  "gmail-smtp": ["user", "pass", "fromName", "fromEmail"],
+  termii: ["apiKey", "senderId", "baseUrl"],
+  resend: ["apiKey", "baseUrl", "fromEmail"],
+  dojah: ["appId", "publicKey", "privateKey", "baseUrl"],
+  wise: ["apiUrl", "token", "webhookSecret"],
+  flutterwave: ["clientId", "clientSecret", "webhookHash", "baseUrl"],
+  onafriq: ["apiKey", "baseUrl"],
+  otpdev: ["apiKey", "senderId", "templateId"],
 };
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

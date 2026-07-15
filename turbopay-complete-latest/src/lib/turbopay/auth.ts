@@ -71,31 +71,41 @@ export async function createSession(
   const now = Date.now();
   const expiresAt = new Date(now + ACCESS_TTL_MS);
   const refreshExpiresAt = new Date(now + REFRESH_TTL_MS);
-  await db.session.create({
-    data: {
-      userId,
-      tokenHash,
-      refreshTokenHash,
-      expiresAt,
-      refreshExpiresAt,
-      ip: meta?.ip ?? null,
-      userAgent: meta?.userAgent ?? null,
-    },
-  });
+  try {
+    await db.session.create({
+      data: {
+        userId,
+        tokenHash,
+        refreshTokenHash,
+        expiresAt,
+        refreshExpiresAt,
+        ip: meta?.ip ?? null,
+        userAgent: meta?.userAgent ?? null,
+      },
+    });
+  } catch (e) {
+    console.error("[createSession] Failed to create session:", e);
+    throw new Error("Failed to create session");
+  }
 
   // Max session limit: revoke oldest sessions if user has too many active.
-  const MAX_SESSIONS = 10;
-  const activeSessions = await db.session.findMany({
-    where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
-    orderBy: { createdAt: "asc" },
-    select: { id: true },
-  });
-  if (activeSessions.length > MAX_SESSIONS) {
-    const toRevoke = activeSessions.slice(0, activeSessions.length - MAX_SESSIONS);
-    await db.session.updateMany({
-      where: { id: { in: toRevoke.map((s) => s.id) } },
-      data: { revokedAt: new Date(), refreshTokenHash: null, refreshExpiresAt: new Date() },
+  try {
+    const MAX_SESSIONS = 10;
+    const activeSessions = await db.session.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
     });
+    if (activeSessions.length > MAX_SESSIONS) {
+      const toRevoke = activeSessions.slice(0, activeSessions.length - MAX_SESSIONS);
+      await db.session.updateMany({
+        where: { id: { in: toRevoke.map((s) => s.id) } },
+        data: { revokedAt: new Date(), refreshTokenHash: null, refreshExpiresAt: new Date() },
+      });
+    }
+  } catch (e) {
+    // Non-fatal: session was already created, just cleanup failed
+    console.warn("[createSession] Failed to clean up excess sessions:", e);
   }
 
   const c = await cookies();

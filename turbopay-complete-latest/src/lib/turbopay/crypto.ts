@@ -88,6 +88,8 @@ export function verifyPassword(password: string, stored: string): boolean {
   if (parts.length !== 3 || parts[0] !== "scrypt") return false;
   const [, salt, hash] = parts;
   const test = crypto.scryptSync(password, salt, 64).toString("hex");
+  // Defensive: corrupted/truncated hash would cause timingSafeEqual to throw
+  if (hash.length !== test.length) return false;
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(test, "hex"));
 }
 

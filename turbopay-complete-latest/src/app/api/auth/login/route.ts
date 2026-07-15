@@ -24,6 +24,7 @@ const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 export async function POST(req: Request) {
+  try {
   // Layer 1: per-IP rate limit (defends a single source spamming many accounts).
   const ipLimited = await rateLimit(req, { key: "login", limit: 10, windowMs: 60_000 });
   if (ipLimited) return ipLimited;
@@ -217,4 +218,8 @@ export async function POST(req: Request) {
       // login response. The client can fetch /api/profile for full details.
     },
   });
+  } catch (error) {
+    console.error("[User Login Error]", error);
+    return errorJson("Internal server error", 500);
+  }
 }

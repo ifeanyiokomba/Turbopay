@@ -120,18 +120,18 @@ export function AuthScreen({ onBack, initialTab = "login" }: { onBack?: () => vo
     }
     setLoading(true);
     try {
+      // Determine verification channel based on provided contact info.
+      const verifyCh = email ? "EMAIL" : "SMS";
       const u = await apiPost<SessionUser & { sessionToken: string; refreshToken: string; hasTransactionPin: boolean; devOtp?: string }>('/api/auth/register', {
         fullName, username: regUsername || undefined, email, country, phone, password: regPass,
         referralCode: referralCode.trim() || undefined,
-        verifyChannel: "EMAIL",
+        verifyChannel: verifyCh,
         privacyPolicyAccepted: termsAccepted,
       });
       // Don't setUser yet — the user must verify first.
-      // Email is the default channel; alternatives (SMS/WhatsApp) are offered
-      // in the verification dialog after email attempts fail.
-      setVerifyTarget(email);
+      setVerifyTarget(email || phone);
       setVerifyPhone(phone);
-      setVerifyChannel("EMAIL");
+      setVerifyChannel(verifyCh);
       setPendingOtp(u.devOtp ?? "");
       setShowVerify(true);
       toast.success("Account created! Check your email for the verification code.");
@@ -553,7 +553,9 @@ function VerifyDialog({ open, onOpenChange, target, phone, channel, onChannelCha
     if (otp.length !== 6) return toast.error("Enter the 6-digit code");
     setLoading(true);
     try {
-      await apiPost("/api/auth/verify/confirm", { target: verifyTarget, otp, purpose: "EMAIL_VERIFY" });
+      // Purpose must match what the server stored during registration.
+      const purpose = channel === "EMAIL" ? "EMAIL_VERIFY" : "PHONE_VERIFY";
+      await apiPost("/api/auth/verify/confirm", { target: verifyTarget, otp, purpose });
       toast.success("Verified! Logging you in…");
       const { apiFetch } = await import("@/lib/turbopay/client");
       const u = await apiFetch<SessionUser>("/api/auth/me");
@@ -575,10 +577,11 @@ function VerifyDialog({ open, onOpenChange, target, phone, channel, onChannelCha
   const resend = async (newChannel?: "EMAIL" | "SMS" | "WHATSAPP") => {
     const ch = newChannel ?? channel;
     try {
+      const purpose = ch === "EMAIL" ? "EMAIL_VERIFY" : "PHONE_VERIFY";
       const res = await apiPost<{ devOtp?: string }>("/api/auth/verify/send", {
         target: ch === "EMAIL" ? target : phone,
         channel: ch,
-        purpose: "EMAIL_VERIFY",
+        purpose,
       });
       if (res.devOtp) setCurrentDevOtp(res.devOtp);
       toast.success(`Code sent via ${ch === "EMAIL" ? "email" : ch === "SMS" ? "SMS" : "WhatsApp"}`);

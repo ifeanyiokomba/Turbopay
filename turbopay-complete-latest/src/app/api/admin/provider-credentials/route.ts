@@ -25,7 +25,7 @@ import { z } from "zod";
 /** Static manifest: which fields each provider requires. */
 const PROVIDER_MANIFEST: Record<string, { contract: string; fields: string[] }> = {
   monnify: { contract: "virtualAccount", fields: ["apiKey", "secretKey", "contractCode", "baseUrl"] },
-  paystack: { contract: "localTransfer", fields: ["secretKey", "baseUrl"] },
+  paystack: { contract: "localTransfer", fields: ["secretKey", "publicKey", "baseUrl"] },
   stripe: { contract: "walletFunding", fields: ["secretKey", "publishableKey", "webhookSecret", "baseUrl"] },
   remita: { contract: "billPayment", fields: ["apiKey", "merchantId", "serviceTypeId", "secretKey", "baseUrl"] },
   quickteller: { contract: "billPayment", fields: ["apiKey", "clientSecret", "merchantCode", "baseUrl", "authBaseUrl"] },

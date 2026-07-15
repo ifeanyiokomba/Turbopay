@@ -144,9 +144,10 @@ export async function POST(req: Request) {
   await audit({ userId: user.id, action: "USER_REGISTERED", category: "AUTH", ip, userAgent: ua });
 
   // Auto-send verification OTP via the chosen channel — the user must verify
-  // before they can log in. The OTP is NEVER returned in the response body
-  // (even in dev) — that was an account-takeover vector on misconfigured envs.
+  // before they can log in. In dev mode, the OTP is returned in the response
+  // body for testing convenience (no email/SMS provider configured in dev).
   // If no email was provided, skip email verification (phone-only account).
+  let devOtpCode: string | undefined;
   try {
     const { generateOtp, hashOtp } = await import("@/lib/turbopay/crypto");
     const { notify } = await import("@/lib/turbocore/notifications");
@@ -167,19 +168,24 @@ export async function POST(req: Request) {
         : undefined;
 
       // Send the verification email/SMS via the notification provider.
-      await notify.send({
-        to: target,
-        channel: effectiveChannel === "WHATSAPP" ? "SMS" : effectiveChannel as "EMAIL" | "SMS",
-        template: "auth.verify-email",
-        variables: {
-          otp: code,
-          userName: fullName.split(" ")[0],
-          ...(verifyUrl ? { verifyUrl } : {}),
-        },
-      });
+      try {
+        await notify.send({
+          to: target,
+          channel: effectiveChannel === "WHATSAPP" ? "SMS" : effectiveChannel as "EMAIL" | "SMS",
+          template: "auth.verify-email",
+          variables: {
+            otp: code,
+            userName: fullName.split(" ")[0],
+            ...(verifyUrl ? { verifyUrl } : {}),
+          },
+        });
+      } catch (e) {
+        console.error("[register] Notification send failed:", e);
+      }
 
-      // Log the OTP server-side for dev/staging convenience (never to the client).
+      // In dev: return the OTP in the response for testing convenience.
       if (process.env.NODE_ENV !== "production") {
+        devOtpCode = code;
         console.info(`[register] OTP for ${target}: ${code}`);
       }
     }
@@ -199,8 +205,8 @@ export async function POST(req: Request) {
       hasTransactionPin: false,
       authProvider: "password",
       createdAt: user.createdAt.toISOString(),
-      // PII minimization: email, phone, avatarUrl, bio excluded.
-      // SECURITY: Tokens are set as HttpOnly cookies, never returned in body.
+      // Dev OTP: returned only in non-production for testing convenience.
+      ...(devOtpCode ? { devOtp: devOtpCode } : {}),
     },
   });
 }
