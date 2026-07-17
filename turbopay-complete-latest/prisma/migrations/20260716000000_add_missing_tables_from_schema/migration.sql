@@ -5,6 +5,8 @@
 -- USER TABLE — missing columns
 -- ============================================================
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "country" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "gender" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lga" TEXT;
 
 -- ============================================================
 -- NEW TABLES
