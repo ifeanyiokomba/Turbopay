@@ -2,11 +2,13 @@
 -- These tables/columns exist in schema.prisma but were not in the initial migration.
 
 -- ============================================================
--- USER TABLE — missing columns
+-- USER TABLE — missing columns + constraint fixes
 -- ============================================================
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "country" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "gender" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lga" TEXT;
+-- phone was NOT NULL in initial migration but schema has it nullable
+ALTER TABLE "User" ALTER COLUMN "phone" DROP NOT NULL;
 
 -- ============================================================
 -- PROVIDERCONFIG TABLE — missing columns
