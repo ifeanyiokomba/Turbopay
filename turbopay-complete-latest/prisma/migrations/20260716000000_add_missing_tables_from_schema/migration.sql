@@ -9,6 +9,17 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "gender" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lga" TEXT;
 
 -- ============================================================
+-- PROVIDERCONFIG TABLE — missing columns
+-- ============================================================
+ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "costBasisPoints" INTEGER;
+ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "settlementSpeedMin" INTEGER;
+ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "capacityPerMin" INTEGER;
+ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "avgLatencyMs" DOUBLE PRECISION;
+ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3);
+ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "lastHealthStatus" TEXT;
+ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "lastHealthLatencyMs" INTEGER;
+
+-- ============================================================
 -- NEW TABLES
 -- ============================================================
 
