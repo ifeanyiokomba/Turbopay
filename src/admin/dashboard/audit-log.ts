@@ -44,6 +44,8 @@ export type AuditEventType =
   | 'bulk_payment.created'
   | 'bulk_payment.processed'
   | 'bulk_payment.completed'
+  | 'sanctions.match'
+  | 'pep.match'
   | 'system.error';
 
 export interface AuditLogEntry {

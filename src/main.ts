@@ -4,6 +4,7 @@
 
 import { ProviderSelectionEngine } from './services/provider-selection-engine';
 import { ProviderRegistry } from './services/provider-wrapper';
+import { ProviderRouter } from './services/provider-router';
 import { TransactionProcessor } from './services/transaction-processor';
 import { LedgerService } from './services/ledger';
 import { BulkPaymentService } from './services/bulk-payment';
@@ -47,6 +48,7 @@ export interface TurboPayInstance {
   // Core Services
   selectionEngine: ProviderSelectionEngine;
   registry: ProviderRegistry;
+  router: ProviderRouter;
   processor: TransactionProcessor;
   ledger: LedgerService;
 
@@ -126,16 +128,19 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   console.log('[TurboPay] Dashboard services initialized');
 
   // ===========================================================================
-  // 4. FEATURE SERVICES
+  // 4. PROVIDER ROUTER (created early — used by feature services below)
   // ===========================================================================
 
-  const bulkPayment = new BulkPaymentService(
-    { registerProvider: async () => {}, getRegisteredProviders: () => [], getCapabilityEngine: () => ({ getSummary: () => ({} as any) }) } as any,
-    ledger
-  );
+  const router = new ProviderRouter();
+
+  // ===========================================================================
+  // 5. FEATURE SERVICES
+  // ===========================================================================
+
+  const bulkPayment = new BulkPaymentService(router, ledger);
 
   const webhookHandler = new WebhookHandler(
-    { registerProvider: async () => {}, getProvider: () => undefined, getRegisteredProviders: () => [] } as any,
+    router,
     { enableLogging: true, enableSignatureValidation: true }
   );
 
@@ -148,14 +153,10 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   console.log('[TurboPay] Feature services initialized');
 
   // ===========================================================================
-  // 5. PROVIDER MANAGEMENT
+  // 6. PROVIDER MANAGEMENT
   // ===========================================================================
 
-  const providerManagement = new ProviderManagementService(
-    { registerProvider: async () => {}, getRegisteredProviders: () => [], getCapabilityEngine: () => ({ getSummary: () => ({} as any) }) } as any,
-    ledger,
-    bulkPayment
-  );
+  const providerManagement = new ProviderManagementService(router, ledger, bulkPayment);
 
   console.log('[TurboPay] Provider management initialized');
 
@@ -221,6 +222,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         });
         registry.register(adapter);
         selectionEngine.registerProvider('paystack', adapter.getCapabilities());
+        await router.registerProvider(adapter);
         console.log('[TurboPay] ✓ Paystack registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Paystack registration failed:', (error as Error).message);
@@ -237,6 +239,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         });
         registry.register(adapter);
         selectionEngine.registerProvider('flutterwave', adapter.getCapabilities());
+        await router.registerProvider(adapter);
         console.log('[TurboPay] ✓ Flutterwave v4 registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Flutterwave v4 registration failed:', (error as Error).message);
@@ -269,6 +272,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         });
         registry.register(adapter);
         selectionEngine.registerProvider('monnify', adapter.getCapabilities());
+        await router.registerProvider(adapter);
         console.log('[TurboPay] ✓ Monnify registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Monnify registration failed:', (error as Error).message);
@@ -285,6 +289,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         });
         registry.register(adapter);
         selectionEngine.registerProvider('onafriq', adapter.getCapabilities());
+        await router.registerProvider(adapter);
         console.log('[TurboPay] ✓ Onafriq registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Onafriq registration failed:', (error as Error).message);
@@ -301,6 +306,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         });
         registry.register(adapter);
         selectionEngine.registerProvider('remita', adapter.getCapabilities());
+        await router.registerProvider(adapter);
         console.log('[TurboPay] ✓ Remita registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Remita registration failed:', (error as Error).message);
@@ -317,6 +323,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         });
         registry.register(adapter);
         selectionEngine.registerProvider('quickteller', adapter.getCapabilities());
+        await router.registerProvider(adapter);
         console.log('[TurboPay] ✓ Quickteller registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Quickteller registration failed:', (error as Error).message);
@@ -393,6 +400,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     // Core
     selectionEngine,
     registry,
+    router,
     processor,
     ledger,
 

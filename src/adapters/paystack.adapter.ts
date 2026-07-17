@@ -132,6 +132,11 @@ export class PaystackAdapter extends BaseAdapter {
   async initializePayment(request: UnifiedPaymentRequest): Promise<UnifiedTransactionResponse> {
     await this.refreshToken();
 
+    // Email is required by Paystack API — throw if not provided
+    if (!request.customer?.email) {
+      throw new Error('Customer email is required for Paystack payments');
+    }
+
     // Create customer if provided
     let customer_code = request.customer?.id;
     if (request.customer && !customer_code) {
@@ -142,7 +147,7 @@ export class PaystackAdapter extends BaseAdapter {
     const payload: any = {
       amount: Math.round(request.amount * 100), // Convert to kobo/cents
       reference: request.reference,
-      email: request.customer?.email || 'customer@example.com',
+      email: request.customer.email,
       currency: request.currency,
       callback_url: request.redirect_url,
       metadata: {

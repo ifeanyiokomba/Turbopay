@@ -152,6 +152,7 @@ export {
 export { CapabilityEngine } from './services/capability-engine';
 export { HealthMonitor } from './services/health-monitor';
 export { LedgerService } from './services/ledger';
+export { SanctionsScreeningService, SanctionsCheckResult, SanctionsMatch } from './services/aml-sanctions';
 export { ProviderWrapper, ProviderRegistry } from './services/provider-wrapper';
 export { ProviderSelectionEngine, ScoringWeights, ProviderScore, ProviderHealthData, ProviderFeeData } from './services/provider-selection-engine';
 export { TransactionProcessor, TransactionConfig, TransactionContext, TransactionResult, ProcessPaymentRequest, ProcessTransferRequest, ProcessBillPaymentRequest } from './services/transaction-processor';

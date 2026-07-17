@@ -77,8 +77,7 @@ CREATE INDEX IF NOT EXISTS "ProviderHealthCheck_providerConfigId_checkedAt_idx" 
 -- ScheduledPayment: cron execution query
 CREATE INDEX IF NOT EXISTS "ScheduledPayment_status_nextExecutionAt_idx" ON "ScheduledPayment"("status", "nextExecutionAt") WHERE "status" = 'ACTIVE';
 
--- AsyncTask: queue worker pending task query
-CREATE INDEX IF NOT EXISTS "AsyncTask_status_type_createdAt_idx" ON "AsyncTask"("status", "type", "createdAt") WHERE "status" = 'PENDING';
+-- AsyncTask index is created in migration 20260716000000 after the table is created
 
 -- IdempotencyRecord: cleanup of expired records
 CREATE INDEX IF NOT EXISTS "IdempotencyRecord_createdAt_idx" ON "IdempotencyRecord"("createdAt");

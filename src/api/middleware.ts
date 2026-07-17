@@ -81,7 +81,16 @@ export function rateLimitMiddleware(maxRequests: number = 100, windowMs: number 
   const requests = new Map<string, { count: number; resetAt: number }>();
 
   return (req: Request, res: Response, next: NextFunction) => {
-    const key = req.headers['x-api-key'] || req.headers['x-forwarded-for'] || 'default';
+    // Use the LAST IP in X-Forwarded-For (trusted proxy's entry), not the first
+    // (which is client-controlled and spoofable). Fall back to x-real-ip.
+    const forwardedFor = req.headers['x-forwarded-for'];
+    let clientIp = 'default';
+    if (forwardedFor) {
+      clientIp = forwardedFor.split(',').pop()?.trim() || req.headers['x-real-ip'] || 'default';
+    } else {
+      clientIp = req.headers['x-real-ip'] || 'default';
+    }
+    const key = req.headers['x-api-key'] || clientIp;
     const now = Date.now();
 
     const record = requests.get(key) || { count: 0, resetAt: now + windowMs };

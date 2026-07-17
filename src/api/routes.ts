@@ -577,6 +577,22 @@ export class TurboPayRoutes {
   // ADMIN ROUTES
   // ===========================================================================
 
+  /**
+   * Verify the request has a valid admin session.
+   * Returns true if authenticated, false otherwise (sends 401/403 response).
+   */
+  private async requireAdmin(req: any, res: any): Promise<boolean> {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return false;
+    }
+    if (req.user.role !== 'master_admin' && req.user.role !== 'admin') {
+      res.status(403).json({ error: 'Admin access required' });
+      return false;
+    }
+    return true;
+  }
+
   private adminRoutes(): Route[] {
     return [
       // Markup Configuration
@@ -585,6 +601,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/markup/rules',
         description: 'List markup rules',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const rules = this.markup.getAllRules();
           res.json({ success: true, rules });
         }
@@ -594,6 +611,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/markup/rules',
         description: 'Create markup rule',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const rule = this.markup.createRule({ ...req.body, created_by: req.user?.id });
           res.json({ success: true, rule });
         }
@@ -603,6 +621,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/markup/rules/:id',
         description: 'Update markup rule',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const rule = this.markup.updateRule(req.params.id, req.body);
           res.json({ success: true, rule });
         }
@@ -612,6 +631,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/markup/rules/:id',
         description: 'Delete markup rule',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const deleted = this.markup.deleteRule(req.params.id);
           res.json({ success: deleted });
         }
@@ -623,6 +643,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/settlements/initiate',
         description: 'Initiate settlement',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const batch = await this.settlement.initiateSettlement(req.body);
           res.json({ success: true, batch });
         }
@@ -632,6 +653,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/settlements/pending',
         description: 'List pending settlements',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const settlements = this.settlement.getPendingSettlements();
           res.json({ success: true, settlements });
         }
@@ -641,6 +663,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/settlements/summary',
         description: 'Get settlement summary',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const summary = this.settlement.getSettlementSummary(req.query.provider);
           res.json({ success: true, summary });
         }
@@ -652,6 +675,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/reconciliation',
         description: 'Reconcile transaction',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const record = await this.settlement.reconcileTransaction(req.body);
           res.json({ success: true, record });
         }
@@ -661,6 +685,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/reconciliation/report',
         description: 'Generate reconciliation report',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const report = await this.settlement.generateReconciliationReport({
             provider: req.query.provider,
             start_date: new Date(req.query.start_date),
@@ -676,6 +701,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/users',
         description: 'List admin users',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const users = this.adminAuth.getAllUsers();
           res.json({ success: true, users });
         }
@@ -686,6 +712,7 @@ export class TurboPayRoutes {
         description: 'Create admin user',
         requiredBodyFields: ['email', 'password', 'first_name', 'last_name', 'role'],
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const user = await this.adminAuth.createUser({ ...req.body, created_by: req.user?.id });
           res.json({ success: true, user });
         }
@@ -697,6 +724,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/audit-log',
         description: 'Query audit log',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const entries = this.auditLog.query({
             event: req.query.event,
             entity_type: req.query.entity_type,
@@ -715,6 +743,7 @@ export class TurboPayRoutes {
         path: '/api/v1/admin/audit-log/stats',
         description: 'Get audit log stats',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const stats = this.auditLog.getStats(req.query.period || 'day');
           res.json({ success: true, stats });
         }
@@ -760,6 +789,7 @@ export class TurboPayRoutes {
         path: '/api/v1/health/check',
         description: 'Run health check',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const results = await this.healthDashboard.runHealthCheck();
           res.json({ success: true, results });
         }
@@ -769,6 +799,7 @@ export class TurboPayRoutes {
         path: '/api/v1/analytics/summary',
         description: 'Analytics summary',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const summary = this.analytics.getSummary(req.query.period || 'day');
           res.json({ success: true, summary });
         }
@@ -778,6 +809,7 @@ export class TurboPayRoutes {
         path: '/api/v1/analytics/providers',
         description: 'Provider analytics',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const analytics = this.analytics.getAllProviderAnalytics(req.query.period || 'day');
           res.json({ success: true, analytics });
         }
@@ -787,6 +819,7 @@ export class TurboPayRoutes {
         path: '/api/v1/analytics/cost-comparison',
         description: 'Cost comparison across providers',
         handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
           const comparison = this.analytics.getCostComparison(req.query.operation);
           res.json({ success: true, comparison });
         }

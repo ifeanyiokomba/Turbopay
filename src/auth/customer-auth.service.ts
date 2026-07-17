@@ -242,18 +242,142 @@ export class CustomerAuthService {
   }
 
   private async verifyBVN(bvn: string, method: 'monnify' | 'flutterwave'): Promise<boolean> {
-    // In production, call Monnify or Flutterwave verification API
-    // Monnify: POST /api/v1/verification/bvn
-    // Flutterwave: POST /v3/bvn/verify
-    console.log(`[CustomerAuth] Verifying BVN ${bvn} via ${method}`);
-    return bvn.length === 11; // Placeholder validation
+    // Validate BVN format first (must be exactly 11 digits)
+    if (!/^\d{11}$/.test(bvn)) {
+      console.warn(`[CustomerAuth] Invalid BVN format: ${bvn}`);
+      return false;
+    }
+
+    // Call the actual verification API
+    try {
+      if (method === 'monnify') {
+        return await this.verifyBVNWithMonnify(bvn);
+      } else {
+        return await this.verifyBVNWithFlutterwave(bvn);
+      }
+    } catch (error) {
+      console.error(`[CustomerAuth] BVN verification failed via ${method}:`, (error as Error).message);
+      return false;
+    }
+  }
+
+  private async verifyBVNWithMonnify(bvn: string): Promise<boolean> {
+    const apiKey = process.env.MONNIFY_API_KEY;
+    const apiSecret = process.env.MONNIFY_API_SECRET;
+    if (!apiKey || !apiSecret) {
+      console.warn('[CustomerAuth] Monnify credentials not configured — skipping BVN verification');
+      return false;
+    }
+
+    // Get bearer token
+    const tokenRes = await fetch('https://api.monnify.com/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, apiSecret }),
+    });
+    if (!tokenRes.ok) throw new Error('Monnify auth failed');
+    const { responseBody } = await tokenRes.json() as any;
+    const bearerToken = responseBody?.accessToken;
+    if (!bearerToken) throw new Error('Monnify token missing');
+
+    // Verify BVN
+    const res = await fetch(`https://api.monnify.com/api/v2/verification/bvn/${bvn}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${bearerToken}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as any;
+    // Monnify returns requestSuccessful: true and data with bvn details
+    return data?.requestSuccessful === true && !!data?.responseBody;
+  }
+
+  private async verifyBVNWithFlutterwave(bvn: string): Promise<boolean> {
+    const secretKey = process.env.FLUTTERWAVE_V3_SECRET_KEY || process.env.FLUTTERWAVE_CLIENT_SECRET;
+    if (!secretKey) {
+      console.warn('[CustomerAuth] Flutterwave credentials not configured — skipping BVN verification');
+      return false;
+    }
+
+    const res = await fetch('https://api.flutterwave.com/v3/bvn/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${secretKey}`,
+      },
+      body: JSON.stringify({ bvn }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as any;
+    return data?.status === 'success' && !!data?.data;
   }
 
   private async verifyNIN(nin: string, method: 'monnify' | 'flutterwave'): Promise<boolean> {
-    // In production, call Monnify or Flutterwave verification API
-    // Monnify: POST /api/v1/verification/nin
-    console.log(`[CustomerAuth] Verifying NIN ${nin} via ${method}`);
-    return nin.length === 11; // Placeholder validation
+    // Validate NIN format first (must be exactly 11 digits)
+    if (!/^\d{11}$/.test(nin)) {
+      console.warn(`[CustomerAuth] Invalid NIN format: ${nin}`);
+      return false;
+    }
+
+    // Call the actual verification API
+    try {
+      if (method === 'monnify') {
+        return await this.verifyNINWithMonnify(nin);
+      } else {
+        return await this.verifyNINWithFlutterwave(nin);
+      }
+    } catch (error) {
+      console.error(`[CustomerAuth] NIN verification failed via ${method}:`, (error as Error).message);
+      return false;
+    }
+  }
+
+  private async verifyNINWithMonnify(nin: string): Promise<boolean> {
+    const apiKey = process.env.MONNIFY_API_KEY;
+    const apiSecret = process.env.MONNIFY_API_SECRET;
+    if (!apiKey || !apiSecret) {
+      console.warn('[CustomerAuth] Monnify credentials not configured — skipping NIN verification');
+      return false;
+    }
+
+    // Get bearer token
+    const tokenRes = await fetch('https://api.monnify.com/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, apiSecret }),
+    });
+    if (!tokenRes.ok) throw new Error('Monnify auth failed');
+    const { responseBody } = await tokenRes.json() as any;
+    const bearerToken = responseBody?.accessToken;
+    if (!bearerToken) throw new Error('Monnify token missing');
+
+    // Verify NIN
+    const res = await fetch(`https://api.monnify.com/api/v2/verification/nin/${nin}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${bearerToken}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as any;
+    return data?.requestSuccessful === true && !!data?.responseBody;
+  }
+
+  private async verifyNINWithFlutterwave(nin: string): Promise<boolean> {
+    const secretKey = process.env.FLUTTERWAVE_V3_SECRET_KEY || process.env.FLUTTERWAVE_CLIENT_SECRET;
+    if (!secretKey) {
+      console.warn('[CustomerAuth] Flutterwave credentials not configured — skipping NIN verification');
+      return false;
+    }
+
+    const res = await fetch('https://api.flutterwave.com/v3/nin/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${secretKey}`,
+      },
+      body: JSON.stringify({ nin }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as any;
+    return data?.status === 'success' && !!data?.data;
   }
 
   // ===========================================================================
@@ -275,7 +399,8 @@ export class CustomerAuthService {
     this.users.set(user.id, user);
     this.dirtyUsers();
 
-    console.log(`[CustomerAuth] Password reset token for ${email}: ${resetToken}`);
+    // SECURITY: Never log password reset tokens — they are secrets
+    console.log(`[CustomerAuth] Password reset requested for ${email}`);
 
     return {
       success: true,

@@ -259,7 +259,8 @@ export class AdminAuthService {
     this.dirtyUsers();
 
     // In production, send email here
-    console.log(`[AuthService] Password reset token for ${email}: ${resetToken}`);
+    // SECURITY: Never log password reset tokens — they are secrets
+    console.log(`[AuthService] Password reset requested for ${email}`);
 
     return { 
       success: true, 

@@ -129,9 +129,9 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
     const origin = req.headers.origin;
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-    } else if (allowedOrigins.length === 0 && config.environment === 'sandbox') {
-      res.setHeader('Access-Control-Allow-Origin', '*');
     }
+    // Note: Wildcard CORS ('*') is NEVER allowed — even in sandbox.
+    // Use CORS_ALLOWED_ORIGINS to explicitly permit origins.
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
 

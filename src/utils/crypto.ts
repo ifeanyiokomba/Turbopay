@@ -1,5 +1,10 @@
-// TurboPay Cryptography Utilities
+// TurboPay Cryptography Utilities (SDK)
 // Encryption, hashing, and signature validation
+//
+// DUPLICATION NOTICE: turbopay-complete-latest/src/lib/turbopay/crypto.ts contains
+// a parallel implementation for the Next.js app. Keep both files in sync when
+// changing password hashing params, PII encryption, or token generation.
+// The SDK version is the canonical source for provider webhook validation.
 
 import crypto from 'crypto';
 
@@ -47,9 +52,13 @@ export async function encryptAES256GCM(
 
 /**
  * Generate random nonce for encryption
+ * Uses hex encoding to avoid entropy loss from base64 truncation
  */
 export function generateNonce(length: number = 12): string {
-  return crypto.randomBytes(length).toString('base64').slice(0, length);
+  // Generate enough random bytes, then take hex chars (2 hex chars per byte)
+  // For 12 chars we need 6 bytes minimum; generate extra for safety
+  const bytesNeeded = Math.ceil(length / 2);
+  return crypto.randomBytes(bytesNeeded).toString('hex').slice(0, length);
 }
 
 /**
@@ -118,8 +127,11 @@ export function hmacSHA512(data: string, secret: string): string {
 
 /**
  * HMAC-MD5 Signature
+ * @deprecated MD5 is cryptographically broken. Use hmacSHA256 or hmacSHA512 instead.
+ * Kept only for backward compatibility with legacy provider integrations.
  */
 export function hmacMD5(data: string, secret: string): string {
+  console.warn('[Crypto] hmacMD5 is deprecated — MD5 is cryptographically broken. Use hmacSHA256 or hmacSHA512.');
   return crypto.createHmac('md5', secret).update(data).digest('hex');
 }
 
