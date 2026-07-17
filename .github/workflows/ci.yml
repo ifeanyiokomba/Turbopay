@@ -64,7 +64,7 @@ jobs:
         run: bunx prisma generate
 
       - name: Run database migrations
-        run: bunx prisma migrate dev --name ci --skip-generate
+        run: bunx prisma migrate deploy
 
       - name: Typecheck
         run: bun run typecheck
