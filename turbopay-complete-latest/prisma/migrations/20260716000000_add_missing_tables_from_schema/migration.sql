@@ -1,5 +1,14 @@
--- Migration: Add missing tables from Prisma schema
--- These tables exist in schema.prisma but were not in the initial migration.
+-- Migration: Add missing tables and columns from Prisma schema
+-- These tables/columns exist in schema.prisma but were not in the initial migration.
+
+-- ============================================================
+-- USER TABLE — missing columns
+-- ============================================================
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "country" TEXT;
+
+-- ============================================================
+-- NEW TABLES
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS "Passkey" (
     "id" TEXT NOT NULL,
