@@ -20,6 +20,22 @@ ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "lastHealthStatus" TEXT;
 ALTER TABLE "ProviderConfig" ADD COLUMN IF NOT EXISTS "lastHealthLatencyMs" INTEGER;
 
 -- ============================================================
+-- OTHER TABLES — missing columns
+-- ============================================================
+ALTER TABLE "FeeConfig" ADD COLUMN IF NOT EXISTS "markupBps" INTEGER;
+ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "retryCount" INTEGER;
+ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3);
+ALTER TABLE "VirtualCard" ADD COLUMN IF NOT EXISTS "panEnc" TEXT;
+ALTER TABLE "VirtualCard" ADD COLUMN IF NOT EXISTS "cvvEnc" TEXT;
+ALTER TABLE "VirtualCard" ADD COLUMN IF NOT EXISTS "expiryMonth" INTEGER;
+ALTER TABLE "VirtualCard" ADD COLUMN IF NOT EXISTS "expiryYear" INTEGER;
+ALTER TABLE "VirtualCard" ADD COLUMN IF NOT EXISTS "cardholderName" TEXT;
+ALTER TABLE "SavingsProduct" ADD COLUMN IF NOT EXISTS "lastAutoSaveAt" TIMESTAMP(3);
+ALTER TABLE "UserReward" ADD COLUMN IF NOT EXISTS "sourceTransactionId" TEXT;
+ALTER TABLE "UserReward" ADD COLUMN IF NOT EXISTS "ruleId" TEXT;
+ALTER TABLE "UserReward" ADD COLUMN IF NOT EXISTS "tier" INTEGER;
+
+-- ============================================================
 -- NEW TABLES
 -- ============================================================
 
