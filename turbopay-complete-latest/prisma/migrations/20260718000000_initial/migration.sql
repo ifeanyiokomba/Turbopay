@@ -6,23 +6,47 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "fullName" TEXT NOT NULL,
     "username" TEXT,
-    "email" TEXT NOT NULL,
-    "phone" TEXT NOT NULL,
-    "passwordHash" TEXT NOT NULL,
+    "email" TEXT,
+    "phone" TEXT,
+    "country" TEXT,
+    "passwordHash" TEXT,
+    "googleId" TEXT,
+    "googlePicture" TEXT,
+    "appleId" TEXT,
+    "applePicture" TEXT,
     "transactionPinHash" TEXT,
     "pinSetAt" TIMESTAMP(3),
     "pinFailCount" INTEGER NOT NULL DEFAULT 0,
     "pinLockedUntil" TIMESTAMP(3),
+    "loginFailCount" INTEGER NOT NULL DEFAULT 0,
+    "loginLockedUntil" TIMESTAMP(3),
     "bvn" TEXT,
     "nin" TEXT,
+    "dateOfBirth" TEXT,
+    "gender" TEXT,
+    "stateOfOrigin" TEXT,
+    "lga" TEXT,
+    "town" TEXT,
     "kycTier" INTEGER NOT NULL DEFAULT 1,
     "kycStatus" TEXT NOT NULL DEFAULT 'UNVERIFIED',
     "status" TEXT NOT NULL DEFAULT 'ACTIVE',
     "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+    "privacyPolicyAccepted" BOOLEAN NOT NULL DEFAULT false,
+    "privacyPolicyAcceptedAt" TIMESTAMP(3),
+    "marketingConsent" BOOLEAN NOT NULL DEFAULT false,
+    "marketingConsentAt" TIMESTAMP(3),
     "phoneVerified" BOOLEAN NOT NULL DEFAULT false,
     "avatarUrl" TEXT,
     "bio" TEXT,
     "role" TEXT NOT NULL DEFAULT 'USER',
+    "mfaSecretEnc" TEXT,
+    "mfaEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "mfaBackupCodesEnc" TEXT,
+    "mfaEnabledAt" TIMESTAMP(3),
+    "mfaLastStep" INTEGER,
+    "largeTxShieldEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "largeTxThresholdKobo" INTEGER NOT NULL DEFAULT 100000,
+    "locationGuardEnabled" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -38,10 +62,30 @@ CREATE TABLE "Session" (
     "ip" TEXT,
     "deviceInfo" TEXT,
     "expiresAt" TIMESTAMP(3) NOT NULL,
+    "refreshTokenHash" TEXT,
+    "refreshExpiresAt" TIMESTAMP(3),
+    "iframeTokenHash" TEXT,
+    "iframeExpiresAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "revokedAt" TIMESTAMP(3),
 
     CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Passkey" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "credentialId" TEXT NOT NULL,
+    "publicKey" TEXT NOT NULL,
+    "counter" BIGINT NOT NULL DEFAULT 0,
+    "deviceName" TEXT NOT NULL,
+    "deviceType" TEXT NOT NULL DEFAULT 'singleDevice',
+    "transports" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastUsedAt" TIMESTAMP(3),
+
+    CONSTRAINT "Passkey_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -77,6 +121,24 @@ CREATE TABLE "LedgerEntry" (
 );
 
 -- CreateTable
+CREATE TABLE "CurrencyLedgerEntry" (
+    "id" TEXT NOT NULL,
+    "currencyWalletId" TEXT NOT NULL,
+    "entryType" TEXT NOT NULL,
+    "amountMinor" INTEGER NOT NULL,
+    "currency" TEXT NOT NULL,
+    "refType" TEXT NOT NULL,
+    "refId" TEXT,
+    "pairId" TEXT,
+    "balanceAfter" INTEGER NOT NULL,
+    "description" TEXT,
+    "immutable" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CurrencyLedgerEntry_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Transaction" (
     "id" TEXT NOT NULL,
     "reference" TEXT NOT NULL,
@@ -87,6 +149,7 @@ CREATE TABLE "Transaction" (
     "amountKobo" INTEGER NOT NULL,
     "feeKobo" INTEGER NOT NULL DEFAULT 0,
     "status" TEXT NOT NULL DEFAULT 'SUCCESS',
+    "state" TEXT,
     "counterpartyName" TEXT,
     "counterpartyAccount" TEXT,
     "counterpartyBank" TEXT,
@@ -99,6 +162,21 @@ CREATE TABLE "Transaction" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Transaction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AsyncTask" (
+    "id" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "payload" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "maxAttempts" INTEGER NOT NULL DEFAULT 3,
+    "error" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "AsyncTask_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -115,6 +193,17 @@ CREATE TABLE "VirtualAccount" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "VirtualAccount_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StripeCustomer" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "stripeCustomerId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "StripeCustomer_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -277,7 +366,7 @@ CREATE TABLE "InternationalTransfer" (
     "sourceAmountMinor" INTEGER NOT NULL,
     "destinationCurrency" TEXT NOT NULL,
     "destinationAmountMinor" INTEGER NOT NULL,
-    "rate" DECIMAL(18,6) NOT NULL,
+    "rate" DECIMAL(65,30) NOT NULL,
     "feesMinor" INTEGER NOT NULL,
     "settlementCurrency" TEXT NOT NULL,
     "beneficiaryName" TEXT NOT NULL,
@@ -357,6 +446,7 @@ CREATE TABLE "FeeConfig" (
     "category" TEXT NOT NULL,
     "type" TEXT NOT NULL DEFAULT 'PERCENT',
     "value" INTEGER NOT NULL DEFAULT 0,
+    "markupBps" INTEGER NOT NULL DEFAULT 0,
     "minFeeMinor" INTEGER NOT NULL DEFAULT 0,
     "maxFeeMinor" INTEGER,
     "currency" TEXT NOT NULL DEFAULT 'NGN',
@@ -366,6 +456,35 @@ CREATE TABLE "FeeConfig" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "FeeConfig_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "FxConfig" (
+    "id" TEXT NOT NULL,
+    "pair" TEXT NOT NULL,
+    "fromCurrency" TEXT NOT NULL,
+    "toCurrency" TEXT NOT NULL,
+    "spreadBps" INTEGER NOT NULL DEFAULT 150,
+    "platformFeeBps" INTEGER NOT NULL DEFAULT 50,
+    "minAmountMinor" INTEGER NOT NULL DEFAULT 0,
+    "maxAmountMinor" INTEGER,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "FxConfig_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "FxRateSnapshot" (
+    "id" TEXT NOT NULL,
+    "pair" TEXT NOT NULL,
+    "rate" DOUBLE PRECISION NOT NULL,
+    "providerRef" TEXT,
+    "fetchedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "FxRateSnapshot_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -455,6 +574,11 @@ CREATE TABLE "ProviderConfig" (
     "lastHealthCheckAt" TIMESTAMP(3),
     "lastHealthStatus" TEXT,
     "lastHealthLatencyMs" INTEGER,
+    "costBasisPoints" INTEGER NOT NULL DEFAULT 0,
+    "settlementSpeedMin" INTEGER NOT NULL DEFAULT 60,
+    "capacityPerMin" INTEGER NOT NULL DEFAULT 0,
+    "avgLatencyMs" INTEGER NOT NULL DEFAULT 0,
+    "expiresAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -488,6 +612,19 @@ CREATE TABLE "ProviderHealthCheck" (
     "checkedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ProviderHealthCheck_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProviderCredentialVersion" (
+    "id" TEXT NOT NULL,
+    "providerConfigId" TEXT NOT NULL,
+    "credentialsEnc" TEXT NOT NULL,
+    "credentialKeys" TEXT NOT NULL,
+    "changedBy" TEXT,
+    "changedByName" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ProviderCredentialVersion_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -586,6 +723,35 @@ CREATE TABLE "ComplianceCase" (
 );
 
 -- CreateTable
+CREATE TABLE "SanctionsEntry" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "listSource" TEXT NOT NULL,
+    "country" TEXT,
+    "entityType" TEXT NOT NULL DEFAULT 'INDIVIDUAL',
+    "reason" TEXT,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SanctionsEntry_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ScreeningResult" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "fullName" TEXT NOT NULL,
+    "nationality" TEXT,
+    "matches" TEXT NOT NULL,
+    "riskLevel" TEXT NOT NULL,
+    "action" TEXT NOT NULL DEFAULT 'PASS',
+    "screenedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ScreeningResult_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "NotificationLog" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
@@ -596,8 +762,10 @@ CREATE TABLE "NotificationLog" (
     "provider" TEXT,
     "messageId" TEXT,
     "errorMsg" TEXT,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
     "metadata" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "NotificationLog_pkey" PRIMARY KEY ("id")
 );
@@ -703,6 +871,11 @@ CREATE TABLE "VirtualCard" (
     "currency" TEXT NOT NULL DEFAULT 'NGN',
     "spendingLimitKobo" INTEGER,
     "metadata" TEXT,
+    "panEnc" TEXT,
+    "cvvEnc" TEXT,
+    "expiryMonth" INTEGER,
+    "expiryYear" INTEGER,
+    "cardholderName" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -721,6 +894,7 @@ CREATE TABLE "SavingsProduct" (
     "lockUntil" TIMESTAMP(3),
     "autoSaveAmountKobo" INTEGER,
     "autoSaveFrequency" TEXT,
+    "lastAutoSaveAt" TIMESTAMP(3),
     "status" TEXT NOT NULL DEFAULT 'ACTIVE',
     "metadata" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -961,6 +1135,9 @@ CREATE TABLE "UserReward" (
     "status" TEXT NOT NULL DEFAULT 'AVAILABLE',
     "expiresAt" TIMESTAMP(3),
     "metadata" TEXT,
+    "sourceTransactionId" TEXT,
+    "ruleId" TEXT,
+    "tier" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1166,6 +1343,300 @@ CREATE TABLE "InAppNotification" (
     CONSTRAINT "InAppNotification_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "ChatConversation" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ChatConversation_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ChatMessage" (
+    "id" TEXT NOT NULL,
+    "conversationId" TEXT NOT NULL,
+    "authorName" TEXT NOT NULL,
+    "authorRole" TEXT NOT NULL DEFAULT 'CUSTOMER',
+    "body" TEXT NOT NULL,
+    "attachments" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ChatMessage_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Device" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "fingerprint" TEXT NOT NULL,
+    "deviceName" TEXT NOT NULL,
+    "ip" TEXT,
+    "trusted" BOOLEAN NOT NULL DEFAULT false,
+    "firstSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastSeenAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Device_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SecurityEvent" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "ip" TEXT,
+    "userAgent" TEXT,
+    "metadata" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SecurityEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SecurityQuestion" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "question" TEXT NOT NULL,
+    "answerHash" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SecurityQuestion_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Testimonial" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "role" TEXT NOT NULL,
+    "location" TEXT,
+    "quote" TEXT NOT NULL,
+    "rating" INTEGER NOT NULL DEFAULT 5,
+    "avatarUrl" TEXT,
+    "approved" BOOLEAN NOT NULL DEFAULT false,
+    "display" BOOLEAN NOT NULL DEFAULT true,
+    "sortOrder" INTEGER NOT NULL DEFAULT 100,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Testimonial_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OutboxEvent" (
+    "id" TEXT NOT NULL,
+    "aggregateType" TEXT NOT NULL,
+    "aggregateId" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "payload" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "publishedAt" TIMESTAMP(3),
+
+    CONSTRAINT "OutboxEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PaymentIntent" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "amountKobo" INTEGER NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'NGN',
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "recipient" TEXT,
+    "metadata" TEXT,
+    "idempotencyKey" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PaymentIntent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SettlementQueue" (
+    "id" TEXT NOT NULL,
+    "transactionId" TEXT NOT NULL,
+    "providerRef" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "maxAttempts" INTEGER NOT NULL DEFAULT 5,
+    "nextRetryAt" TIMESTAMP(3),
+    "lastError" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SettlementQueue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CronLock" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "lockedBy" TEXT,
+    "lockedAt" TIMESTAMP(3),
+    "expiresAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CronLock_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CurrencyWallet" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "currency" TEXT NOT NULL,
+    "balanceMinor" INTEGER NOT NULL DEFAULT 0,
+    "lockedMinor" INTEGER NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "version" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CurrencyWallet_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "InternationalBeneficiary" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "country" TEXT NOT NULL,
+    "bankName" TEXT,
+    "accountNumber" TEXT,
+    "swiftCode" TEXT,
+    "routingNumber" TEXT,
+    "mobileWallet" TEXT,
+    "nickname" TEXT,
+    "currency" TEXT NOT NULL,
+    "isFavourite" BOOLEAN NOT NULL DEFAULT false,
+    "verificationStatus" TEXT NOT NULL DEFAULT 'UNVERIFIED',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "InternationalBeneficiary_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SystemMetric" (
+    "id" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SystemMetric_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PaymentFlowLog" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "reference" TEXT NOT NULL,
+    "contract" TEXT NOT NULL,
+    "amountKobo" INTEGER NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'NGN',
+    "country" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "selectedProvider" TEXT,
+    "selectionReason" TEXT,
+    "selectionScore" INTEGER,
+    "candidatesCount" INTEGER,
+    "attemptsCount" INTEGER,
+    "providerRef" TEXT,
+    "providerStatus" TEXT,
+    "providerError" TEXT,
+    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completedAt" TIMESTAMP(3),
+    "durationMs" INTEGER,
+    "metadata" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PaymentFlowLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProviderCapability" (
+    "id" TEXT NOT NULL,
+    "providerName" TEXT NOT NULL,
+    "capability" TEXT NOT NULL,
+    "supported" BOOLEAN NOT NULL DEFAULT true,
+    "supportedCountries" TEXT,
+    "supportedCurrencies" TEXT,
+    "percentageFeeBps" INTEGER NOT NULL DEFAULT 0,
+    "fixedFeeMinor" INTEGER NOT NULL DEFAULT 0,
+    "requestsPerMinute" INTEGER,
+    "maxTransferAmount" INTEGER,
+    "version" TEXT,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ProviderCapability_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PaymentRoutingDecision" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT,
+    "contract" TEXT NOT NULL,
+    "amountKobo" INTEGER NOT NULL,
+    "currency" TEXT NOT NULL,
+    "country" TEXT,
+    "selectedProvider" TEXT NOT NULL,
+    "selectionReason" TEXT NOT NULL,
+    "selectionScore" INTEGER NOT NULL,
+    "candidatesCount" INTEGER NOT NULL,
+    "eliminatedCount" INTEGER NOT NULL,
+    "factorScores" TEXT,
+    "decisionMs" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PaymentRoutingDecision_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PaymentLink" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "reference" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "amountKobo" INTEGER NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'NGN',
+    "allowCustomAmount" BOOLEAN NOT NULL DEFAULT false,
+    "minAmountKobo" INTEGER,
+    "maxAmountKobo" INTEGER,
+    "maxUses" INTEGER,
+    "useCount" INTEGER NOT NULL DEFAULT 0,
+    "expiresAt" TIMESTAMP(3),
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "metadata" TEXT,
+    "providerRef" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PaymentLink_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PaymentLinkPayment" (
+    "id" TEXT NOT NULL,
+    "paymentLinkId" TEXT NOT NULL,
+    "reference" TEXT NOT NULL,
+    "amountKobo" INTEGER NOT NULL,
+    "feeKobo" INTEGER NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "payerEmail" TEXT,
+    "payerName" TEXT,
+    "provider" TEXT,
+    "providerRef" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PaymentLinkPayment_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 
@@ -1176,6 +1647,12 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "User_googleId_key" ON "User"("googleId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_appleId_key" ON "User"("appleId");
+
+-- CreateIndex
 CREATE INDEX "User_status_idx" ON "User"("status");
 
 -- CreateIndex
@@ -1183,6 +1660,15 @@ CREATE UNIQUE INDEX "Session_tokenHash_key" ON "Session"("tokenHash");
 
 -- CreateIndex
 CREATE INDEX "Session_userId_idx" ON "Session"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Passkey_credentialId_key" ON "Passkey"("credentialId");
+
+-- CreateIndex
+CREATE INDEX "Passkey_userId_idx" ON "Passkey"("userId");
+
+-- CreateIndex
+CREATE INDEX "Passkey_credentialId_idx" ON "Passkey"("credentialId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Wallet_userId_key" ON "Wallet"("userId");
@@ -1200,6 +1686,15 @@ CREATE INDEX "LedgerEntry_walletId_entryType_idx" ON "LedgerEntry"("walletId", "
 CREATE INDEX "LedgerEntry_refType_refId_idx" ON "LedgerEntry"("refType", "refId");
 
 -- CreateIndex
+CREATE INDEX "CurrencyLedgerEntry_currencyWalletId_idx" ON "CurrencyLedgerEntry"("currencyWalletId");
+
+-- CreateIndex
+CREATE INDEX "CurrencyLedgerEntry_currencyWalletId_entryType_idx" ON "CurrencyLedgerEntry"("currencyWalletId", "entryType");
+
+-- CreateIndex
+CREATE INDEX "CurrencyLedgerEntry_refType_refId_idx" ON "CurrencyLedgerEntry"("refType", "refId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Transaction_reference_key" ON "Transaction"("reference");
 
 -- CreateIndex
@@ -1215,6 +1710,9 @@ CREATE INDEX "Transaction_type_idx" ON "Transaction"("type");
 CREATE INDEX "Transaction_status_idx" ON "Transaction"("status");
 
 -- CreateIndex
+CREATE INDEX "Transaction_state_idx" ON "Transaction"("state");
+
+-- CreateIndex
 CREATE INDEX "Transaction_createdAt_idx" ON "Transaction"("createdAt");
 
 -- CreateIndex
@@ -1224,10 +1722,22 @@ CREATE INDEX "Transaction_userId_direction_status_createdAt_idx" ON "Transaction
 CREATE INDEX "Transaction_userId_type_createdAt_idx" ON "Transaction"("userId", "type", "createdAt");
 
 -- CreateIndex
+CREATE INDEX "Transaction_provider_status_createdAt_idx" ON "Transaction"("provider", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "AsyncTask_status_type_createdAt_idx" ON "AsyncTask"("status", "type", "createdAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "VirtualAccount_accountNumber_key" ON "VirtualAccount"("accountNumber");
 
 -- CreateIndex
 CREATE INDEX "VirtualAccount_userId_idx" ON "VirtualAccount"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StripeCustomer_userId_key" ON "StripeCustomer"("userId");
+
+-- CreateIndex
+CREATE INDEX "StripeCustomer_userId_idx" ON "StripeCustomer"("userId");
 
 -- CreateIndex
 CREATE INDEX "KycVerification_userId_idx" ON "KycVerification"("userId");
@@ -1326,6 +1836,21 @@ CREATE INDEX "FeeConfig_product_active_idx" ON "FeeConfig"("product", "active");
 CREATE UNIQUE INDEX "FeeConfig_product_category_key" ON "FeeConfig"("product", "category");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "FxConfig_pair_key" ON "FxConfig"("pair");
+
+-- CreateIndex
+CREATE INDEX "FxConfig_enabled_idx" ON "FxConfig"("enabled");
+
+-- CreateIndex
+CREATE INDEX "FxConfig_fromCurrency_toCurrency_idx" ON "FxConfig"("fromCurrency", "toCurrency");
+
+-- CreateIndex
+CREATE INDEX "FxRateSnapshot_pair_expiresAt_idx" ON "FxRateSnapshot"("pair", "expiresAt");
+
+-- CreateIndex
+CREATE INDEX "FxRateSnapshot_pair_fetchedAt_idx" ON "FxRateSnapshot"("pair", "fetchedAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "BillSwiftBulkJob_reference_key" ON "BillSwiftBulkJob"("reference");
 
 -- CreateIndex
@@ -1368,6 +1893,12 @@ CREATE UNIQUE INDEX "ProviderRoute_contract_tier_key" ON "ProviderRoute"("contra
 CREATE INDEX "ProviderHealthCheck_providerConfigId_checkedAt_idx" ON "ProviderHealthCheck"("providerConfigId", "checkedAt");
 
 -- CreateIndex
+CREATE INDEX "ProviderCredentialVersion_providerConfigId_idx" ON "ProviderCredentialVersion"("providerConfigId");
+
+-- CreateIndex
+CREATE INDEX "ProviderCredentialVersion_createdAt_idx" ON "ProviderCredentialVersion"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "WebhookEndpoint_enabled_idx" ON "WebhookEndpoint"("enabled");
 
 -- CreateIndex
@@ -1399,6 +1930,24 @@ CREATE INDEX "ComplianceCase_userId_status_idx" ON "ComplianceCase"("userId", "s
 
 -- CreateIndex
 CREATE INDEX "ComplianceCase_type_status_idx" ON "ComplianceCase"("type", "status");
+
+-- CreateIndex
+CREATE INDEX "SanctionsEntry_name_idx" ON "SanctionsEntry"("name");
+
+-- CreateIndex
+CREATE INDEX "SanctionsEntry_listSource_idx" ON "SanctionsEntry"("listSource");
+
+-- CreateIndex
+CREATE INDEX "SanctionsEntry_active_idx" ON "SanctionsEntry"("active");
+
+-- CreateIndex
+CREATE INDEX "ScreeningResult_userId_idx" ON "ScreeningResult"("userId");
+
+-- CreateIndex
+CREATE INDEX "ScreeningResult_riskLevel_idx" ON "ScreeningResult"("riskLevel");
+
+-- CreateIndex
+CREATE INDEX "ScreeningResult_screenedAt_idx" ON "ScreeningResult"("screenedAt");
 
 -- CreateIndex
 CREATE INDEX "NotificationLog_userId_idx" ON "NotificationLog"("userId");
@@ -1542,6 +2091,15 @@ CREATE INDEX "VoucherRedemption_userId_idx" ON "VoucherRedemption"("userId");
 CREATE INDEX "UserReward_userId_status_idx" ON "UserReward"("userId", "status");
 
 -- CreateIndex
+CREATE INDEX "UserReward_userId_type_idx" ON "UserReward"("userId", "type");
+
+-- CreateIndex
+CREATE INDEX "UserReward_sourceTransactionId_type_idx" ON "UserReward"("sourceTransactionId", "type");
+
+-- CreateIndex
+CREATE INDEX "UserReward_userId_type_tier_idx" ON "UserReward"("userId", "type", "tier");
+
+-- CreateIndex
 CREATE INDEX "VirtualCardTransaction_cardId_createdAt_idx" ON "VirtualCardTransaction"("cardId", "createdAt");
 
 -- CreateIndex
@@ -1601,14 +2159,140 @@ CREATE INDEX "InAppNotification_userId_read_createdAt_idx" ON "InAppNotification
 -- CreateIndex
 CREATE INDEX "InAppNotification_userId_type_createdAt_idx" ON "InAppNotification"("userId", "type", "createdAt");
 
+-- CreateIndex
+CREATE INDEX "ChatConversation_userId_status_idx" ON "ChatConversation"("userId", "status");
+
+-- CreateIndex
+CREATE INDEX "ChatMessage_conversationId_createdAt_idx" ON "ChatMessage"("conversationId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "Device_userId_idx" ON "Device"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Device_userId_fingerprint_key" ON "Device"("userId", "fingerprint");
+
+-- CreateIndex
+CREATE INDEX "SecurityEvent_userId_createdAt_idx" ON "SecurityEvent"("userId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "SecurityQuestion_userId_idx" ON "SecurityQuestion"("userId");
+
+-- CreateIndex
+CREATE INDEX "Testimonial_approved_display_sortOrder_idx" ON "Testimonial"("approved", "display", "sortOrder");
+
+-- CreateIndex
+CREATE INDEX "OutboxEvent_status_createdAt_idx" ON "OutboxEvent"("status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PaymentIntent_userId_status_createdAt_idx" ON "PaymentIntent"("userId", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PaymentIntent_idempotencyKey_idx" ON "PaymentIntent"("idempotencyKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SettlementQueue_transactionId_key" ON "SettlementQueue"("transactionId");
+
+-- CreateIndex
+CREATE INDEX "SettlementQueue_status_nextRetryAt_idx" ON "SettlementQueue"("status", "nextRetryAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CronLock_name_key" ON "CronLock"("name");
+
+-- CreateIndex
+CREATE INDEX "CurrencyWallet_userId_idx" ON "CurrencyWallet"("userId");
+
+-- CreateIndex
+CREATE INDEX "CurrencyWallet_status_idx" ON "CurrencyWallet"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CurrencyWallet_userId_currency_key" ON "CurrencyWallet"("userId", "currency");
+
+-- CreateIndex
+CREATE INDEX "InternationalBeneficiary_userId_idx" ON "InternationalBeneficiary"("userId");
+
+-- CreateIndex
+CREATE INDEX "InternationalBeneficiary_userId_isFavourite_idx" ON "InternationalBeneficiary"("userId", "isFavourite");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SystemMetric_key_key" ON "SystemMetric"("key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PaymentFlowLog_reference_key" ON "PaymentFlowLog"("reference");
+
+-- CreateIndex
+CREATE INDEX "PaymentFlowLog_userId_createdAt_idx" ON "PaymentFlowLog"("userId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PaymentFlowLog_contract_status_createdAt_idx" ON "PaymentFlowLog"("contract", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PaymentFlowLog_selectedProvider_status_idx" ON "PaymentFlowLog"("selectedProvider", "status");
+
+-- CreateIndex
+CREATE INDEX "PaymentFlowLog_createdAt_idx" ON "PaymentFlowLog"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "ProviderCapability_providerName_idx" ON "ProviderCapability"("providerName");
+
+-- CreateIndex
+CREATE INDEX "ProviderCapability_capability_idx" ON "ProviderCapability"("capability");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ProviderCapability_providerName_capability_key" ON "ProviderCapability"("providerName", "capability");
+
+-- CreateIndex
+CREATE INDEX "PaymentRoutingDecision_contract_createdAt_idx" ON "PaymentRoutingDecision"("contract", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PaymentRoutingDecision_selectedProvider_createdAt_idx" ON "PaymentRoutingDecision"("selectedProvider", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PaymentRoutingDecision_createdAt_idx" ON "PaymentRoutingDecision"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PaymentLink_reference_key" ON "PaymentLink"("reference");
+
+-- CreateIndex
+CREATE INDEX "PaymentLink_userId_idx" ON "PaymentLink"("userId");
+
+-- CreateIndex
+CREATE INDEX "PaymentLink_reference_idx" ON "PaymentLink"("reference");
+
+-- CreateIndex
+CREATE INDEX "PaymentLink_status_idx" ON "PaymentLink"("status");
+
+-- CreateIndex
+CREATE INDEX "PaymentLink_createdAt_idx" ON "PaymentLink"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PaymentLinkPayment_reference_key" ON "PaymentLinkPayment"("reference");
+
+-- CreateIndex
+CREATE INDEX "PaymentLinkPayment_paymentLinkId_idx" ON "PaymentLinkPayment"("paymentLinkId");
+
+-- CreateIndex
+CREATE INDEX "PaymentLinkPayment_reference_idx" ON "PaymentLinkPayment"("reference");
+
+-- CreateIndex
+CREATE INDEX "PaymentLinkPayment_status_idx" ON "PaymentLinkPayment"("status");
+
+-- CreateIndex
+CREATE INDEX "PaymentLinkPayment_createdAt_idx" ON "PaymentLinkPayment"("createdAt");
+
 -- AddForeignKey
-ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Passkey" ADD CONSTRAINT "Passkey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Wallet" ADD CONSTRAINT "Wallet_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_walletId_fkey" FOREIGN KEY ("walletId") REFERENCES "Wallet"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CurrencyLedgerEntry" ADD CONSTRAINT "CurrencyLedgerEntry_currencyWalletId_fkey" FOREIGN KEY ("currencyWalletId") REFERENCES "CurrencyWallet"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1618,6 +2302,9 @@ ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_walletId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "VirtualAccount" ADD CONSTRAINT "VirtualAccount_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StripeCustomer" ADD CONSTRAINT "StripeCustomer_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "KycVerification" ADD CONSTRAINT "KycVerification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1651,6 +2338,12 @@ ALTER TABLE "ProviderRoute" ADD CONSTRAINT "ProviderRoute_providerConfigId_fkey"
 
 -- AddForeignKey
 ALTER TABLE "ProviderHealthCheck" ADD CONSTRAINT "ProviderHealthCheck_providerConfigId_fkey" FOREIGN KEY ("providerConfigId") REFERENCES "ProviderConfig"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProviderCredentialVersion" ADD CONSTRAINT "ProviderCredentialVersion_providerConfigId_fkey" FOREIGN KEY ("providerConfigId") REFERENCES "ProviderConfig"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ScreeningResult" ADD CONSTRAINT "ScreeningResult_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "NotificationLog" ADD CONSTRAINT "NotificationLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -1735,4 +2428,40 @@ ALTER TABLE "PaymentTemplate" ADD CONSTRAINT "PaymentTemplate_userId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "InAppNotification" ADD CONSTRAINT "InAppNotification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ChatConversation" ADD CONSTRAINT "ChatConversation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "ChatConversation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Device" ADD CONSTRAINT "Device_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SecurityEvent" ADD CONSTRAINT "SecurityEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SecurityQuestion" ADD CONSTRAINT "SecurityQuestion_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentIntent" ADD CONSTRAINT "PaymentIntent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SettlementQueue" ADD CONSTRAINT "SettlementQueue_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "Transaction"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CurrencyWallet" ADD CONSTRAINT "CurrencyWallet_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InternationalBeneficiary" ADD CONSTRAINT "InternationalBeneficiary_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentFlowLog" ADD CONSTRAINT "PaymentFlowLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentLink" ADD CONSTRAINT "PaymentLink_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentLinkPayment" ADD CONSTRAINT "PaymentLinkPayment_paymentLinkId_fkey" FOREIGN KEY ("paymentLinkId") REFERENCES "PaymentLink"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
