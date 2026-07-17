@@ -1,6 +1,5 @@
 -- Migration: Add missing tables from Prisma schema
 -- These tables exist in schema.prisma but were not in the initial migration.
--- Generated from prisma migrate diff --from-empty --to-schema-datamodel
 
 CREATE TABLE IF NOT EXISTS "Passkey" (
     "id" TEXT NOT NULL,
@@ -15,6 +14,7 @@ CREATE TABLE IF NOT EXISTS "Passkey" (
     "lastUsedAt" TIMESTAMP(3),
 
     CONSTRAINT "Passkey_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "CurrencyLedgerEntry" (
     "id" TEXT NOT NULL,
@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS "CurrencyLedgerEntry" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "CurrencyLedgerEntry_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "AsyncTask" (
     "id" TEXT NOT NULL,
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS "AsyncTask" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "AsyncTask_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "StripeCustomer" (
     "id" TEXT NOT NULL,
@@ -53,6 +55,7 @@ CREATE TABLE IF NOT EXISTS "StripeCustomer" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "StripeCustomer_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "FxConfig" (
     "id" TEXT NOT NULL,
@@ -68,6 +71,7 @@ CREATE TABLE IF NOT EXISTS "FxConfig" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "FxConfig_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "FxRateSnapshot" (
     "id" TEXT NOT NULL,
@@ -78,6 +82,7 @@ CREATE TABLE IF NOT EXISTS "FxRateSnapshot" (
     "expiresAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "FxRateSnapshot_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "ProviderCredentialVersion" (
     "id" TEXT NOT NULL,
@@ -89,6 +94,7 @@ CREATE TABLE IF NOT EXISTS "ProviderCredentialVersion" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ProviderCredentialVersion_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "SanctionsEntry" (
     "id" TEXT NOT NULL,
@@ -102,6 +108,7 @@ CREATE TABLE IF NOT EXISTS "SanctionsEntry" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "SanctionsEntry_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "ScreeningResult" (
     "id" TEXT NOT NULL,
@@ -114,6 +121,7 @@ CREATE TABLE IF NOT EXISTS "ScreeningResult" (
     "screenedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ScreeningResult_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "ChatConversation" (
     "id" TEXT NOT NULL,
@@ -123,6 +131,7 @@ CREATE TABLE IF NOT EXISTS "ChatConversation" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "ChatConversation_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "ChatMessage" (
     "id" TEXT NOT NULL,
@@ -134,6 +143,7 @@ CREATE TABLE IF NOT EXISTS "ChatMessage" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ChatMessage_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "Device" (
     "id" TEXT NOT NULL,
@@ -146,6 +156,7 @@ CREATE TABLE IF NOT EXISTS "Device" (
     "lastSeenAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Device_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "SecurityEvent" (
     "id" TEXT NOT NULL,
@@ -157,6 +168,7 @@ CREATE TABLE IF NOT EXISTS "SecurityEvent" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "SecurityEvent_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "SecurityQuestion" (
     "id" TEXT NOT NULL,
@@ -166,6 +178,7 @@ CREATE TABLE IF NOT EXISTS "SecurityQuestion" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "SecurityQuestion_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "Testimonial" (
     "id" TEXT NOT NULL,
@@ -182,6 +195,7 @@ CREATE TABLE IF NOT EXISTS "Testimonial" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Testimonial_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "OutboxEvent" (
     "id" TEXT NOT NULL,
@@ -194,6 +208,7 @@ CREATE TABLE IF NOT EXISTS "OutboxEvent" (
     "publishedAt" TIMESTAMP(3),
 
     CONSTRAINT "OutboxEvent_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "PaymentIntent" (
     "id" TEXT NOT NULL,
@@ -209,6 +224,7 @@ CREATE TABLE IF NOT EXISTS "PaymentIntent" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "PaymentIntent_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "SettlementQueue" (
     "id" TEXT NOT NULL,
@@ -223,6 +239,7 @@ CREATE TABLE IF NOT EXISTS "SettlementQueue" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "SettlementQueue_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "CronLock" (
     "id" TEXT NOT NULL,
@@ -234,6 +251,7 @@ CREATE TABLE IF NOT EXISTS "CronLock" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "CronLock_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "CurrencyWallet" (
     "id" TEXT NOT NULL,
@@ -247,6 +265,7 @@ CREATE TABLE IF NOT EXISTS "CurrencyWallet" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "CurrencyWallet_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "InternationalBeneficiary" (
     "id" TEXT NOT NULL,
@@ -266,6 +285,7 @@ CREATE TABLE IF NOT EXISTS "InternationalBeneficiary" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "InternationalBeneficiary_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "SystemMetric" (
     "id" TEXT NOT NULL,
@@ -274,6 +294,7 @@ CREATE TABLE IF NOT EXISTS "SystemMetric" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "SystemMetric_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "PaymentFlowLog" (
     "id" TEXT NOT NULL,
@@ -299,6 +320,7 @@ CREATE TABLE IF NOT EXISTS "PaymentFlowLog" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "PaymentFlowLog_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "ProviderCapability" (
     "id" TEXT NOT NULL,
@@ -317,6 +339,7 @@ CREATE TABLE IF NOT EXISTS "ProviderCapability" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "ProviderCapability_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "PaymentRoutingDecision" (
     "id" TEXT NOT NULL,
@@ -335,6 +358,7 @@ CREATE TABLE IF NOT EXISTS "PaymentRoutingDecision" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "PaymentRoutingDecision_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "PaymentLink" (
     "id" TEXT NOT NULL,
@@ -357,6 +381,7 @@ CREATE TABLE IF NOT EXISTS "PaymentLink" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "PaymentLink_pkey" PRIMARY KEY ("id")
+);
 
 CREATE TABLE IF NOT EXISTS "PaymentLinkPayment" (
     "id" TEXT NOT NULL,
@@ -373,10 +398,6 @@ CREATE TABLE IF NOT EXISTS "PaymentLinkPayment" (
 
     CONSTRAINT "PaymentLinkPayment_pkey" PRIMARY KEY ("id")
 );
-
--- ============================================================
--- PERFORMANCE INDEXES for newly created tables
--- ============================================================
 
 -- AsyncTask: queue worker pending task query
 CREATE INDEX IF NOT EXISTS "AsyncTask_status_type_createdAt_idx" ON "AsyncTask"("status", "type", "createdAt") WHERE "status" = 'PENDING';
