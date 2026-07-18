@@ -37,6 +37,35 @@ export const onafriqWebhookHandler: WebhookHandler = {
 
     if (!ref) return [];
 
+    // ─── Mobile Money Events (checked BEFORE general collection) ──
+    if (eventType.includes("momo") && eventType.includes("collection") && status === "completed") {
+      return [{
+        type: "MOMO_COLLECTION_COMPLETED",
+        data: {
+          providerRef: ref,
+          provider: "onafriq",
+          amountMinor: Math.round(amount * 100),
+          currency: p?.currency ?? "NGN",
+          network: p?.network,
+          mobileMoneyNumber: p?.mobileMoneyNumber,
+          status: "SUCCESS",
+        },
+      }];
+    }
+    if (eventType.includes("momo") && eventType.includes("disbursement") && status === "completed") {
+      return [{
+        type: "MOMO_DISBURSEMENT_COMPLETED",
+        data: {
+          providerRef: ref,
+          provider: "onafriq",
+          amountMinor: Math.round(amount * 100),
+          currency: p?.currency ?? "NGN",
+          network: p?.network,
+          status: "SUCCESS",
+        },
+      }];
+    }
+
     // ─── Collection Events ──────────────────────────────────────
     if (eventType === "collection.successful" || (eventType.includes("collection") && status === "completed")) {
       return [{
@@ -83,35 +112,6 @@ export const onafriqWebhookHandler: WebhookHandler = {
           provider: "onafriq",
           status: "FAILED",
           reason: p?.reason ?? "Payment failed",
-        },
-      }];
-    }
-
-    // ─── Mobile Money Events ────────────────────────────────────
-    if (eventType.includes("momo") && eventType.includes("collection") && status === "completed") {
-      return [{
-        type: "MOMO_COLLECTION_COMPLETED",
-        data: {
-          providerRef: ref,
-          provider: "onafriq",
-          amountMinor: Math.round(amount * 100),
-          currency: p?.currency ?? "NGN",
-          network: p?.network,
-          mobileMoneyNumber: p?.mobileMoneyNumber,
-          status: "SUCCESS",
-        },
-      }];
-    }
-    if (eventType.includes("momo") && eventType.includes("disbursement") && status === "completed") {
-      return [{
-        type: "MOMO_DISBURSEMENT_COMPLETED",
-        data: {
-          providerRef: ref,
-          provider: "onafriq",
-          amountMinor: Math.round(amount * 100),
-          currency: p?.currency ?? "NGN",
-          network: p?.network,
-          status: "SUCCESS",
         },
       }];
     }
