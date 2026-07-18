@@ -3,13 +3,15 @@ import { errorJson, json } from "@/lib/turbopay/api";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { billingService, ServiceError } from "@/lib/turbopay/services";
 import { DomainError } from "@/lib/turbopay/errors";
+import { normalizePhone } from "@/lib/turbocore/config/country-currency";
 import { z } from "zod";
 
 const schema = z.object({
-  phoneNumber: z.string().regex(/^\+234[0-9]{10}$/, "Use format +2348012345678"),
+  phoneNumber: z.string().regex(/^(\+[1-9]\d{6,14}|[0-9]{7,15})$/, "Enter a valid phone number"),
   network: z.enum(["MTN", "GLO", "AIRTEL", "9MOBILE"]),
   amountNaira: z.number().min(50, "Minimum is ₦50").max(50000, "Maximum is ₦50,000"),
   pin: z.string().regex(/^\d{4}$/, "Transaction PIN is required"),
+  country: z.string().min(2).max(2).default("NG"),
 });
 
 export async function POST(req: Request) {
@@ -32,10 +34,13 @@ export async function POST(req: Request) {
   const limited = await rateLimit(req, { key: "pin", limit: 10, windowMs: 60_000, scope: "user", userId: user.id });
   if (limited) return limited;
 
+  // Normalize phone number with country code
+  const phoneNumber = normalizePhone(parsed.data.phoneNumber, parsed.data.country);
+
   try {
     const result = await billingService.buyAirtime({
       user,
-      phoneNumber: parsed.data.phoneNumber,
+      phoneNumber,
       network: parsed.data.network,
       amountNaira: parsed.data.amountNaira,
       pin: parsed.data.pin,
