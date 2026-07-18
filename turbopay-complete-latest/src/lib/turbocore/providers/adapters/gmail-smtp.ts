@@ -46,83 +46,152 @@ interface EmailTemplate {
 }
 
 const TEMPLATES: Record<string, EmailTemplate> = {
-  "auth.otp": {
-    subject: "Your Turbopay Verification Code",
-    html: (v) => `
-      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-        <div style="text-align:center;margin-bottom:24px">
-          <h1 style="color:#1a1a2e;font-size:24px;margin:0">Turbopay</h1>
-        </div>
-        <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 16px">Your verification code is</p>
-          <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:0 0 16px">${v.otp}</h2>
-          <p style="color:#888;font-size:12px;margin:0">Valid for 10 minutes. Do not share this code.</p>
-        </div>
-        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">
-          If you didn't request this, ignore this email.
-        </p>
-      </div>
-    `,
-  },
-
+  // ─── Registration / Sign-Up OTP ────────────────────────────
   "auth.verify-email": {
-    subject: "Verify Your Turbopay Account",
+    subject: "Confirm Your TurboPay Account Registration",
     html: (v) => `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <div style="text-align:center;margin-bottom:24px">
-          <h1 style="color:#1a1a2e;font-size:24px;margin:0">Turbopay</h1>
+          <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 16px">Welcome to Turbopay! Verify your email address to get started.</p>
-          ${v.verifyUrl
-            ? `<a href="${v.verifyUrl}" style="display:inline-block;background:#1a1a2e;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:bold;margin:16px 0">Verify Email Address</a>
-               <p style="color:#888;font-size:12px;margin:12px 0 0">Or enter this code: <strong>${v.otp}</strong></p>`
-            : `<p style="color:#555;font-size:14px">Your verification code is:</p>
-               <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>`
-          }
-          <p style="color:#888;font-size:12px;margin:16px 0 0">Valid for 10 minutes.</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName} ${v.lastName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">Welcome to TurboPay! We are excited to have you onboard.</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">To complete your account registration, please enter the verification code below:</p>
+          <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
+          <p style="color:#888;font-size:12px;margin:16px 0 0">This verification code will expire in 5 minutes. For your security, do not share this code with anyone.</p>
         </div>
-        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">
-          If you didn't create this account, ignore this email.
-        </p>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not request this registration, please ignore this message.</p>
+        <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
       </div>
     `,
   },
 
+  // ─── Generic OTP (fallback) ────────────────────────────────
+  "auth.otp": {
+    subject: "Your TurboPay Verification Code",
+    html: (v) => `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+        </div>
+        <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">Your verification code is:</p>
+          <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
+          <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
+        </div>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+      </div>
+    `,
+  },
+
+  // ─── Forgot Password OTP ───────────────────────────────────
   "auth.forgot-password": {
-    subject: "Reset Your Turbopay Password",
+    subject: "Reset Your TurboPay Password",
     html: (v) => `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <div style="text-align:center;margin-bottom:24px">
-          <h1 style="color:#1a1a2e;font-size:24px;margin:0">Turbopay</h1>
+          <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 16px">You requested a password reset. Use the code below:</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName} ${v.lastName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">We received a request to reset your TurboPay account password.</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">To continue with the password reset process, enter the verification code below:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
-          <p style="color:#888;font-size:12px;margin:16px 0 0">Valid for 10 minutes. If you didn't request this, secure your account immediately.</p>
+          <p style="color:#888;font-size:12px;margin:16px 0 0">This verification code will expire in 5 minutes. For your security, do not share this code with anyone.</p>
         </div>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not request a password reset, please secure your account or contact TurboPay Support.</p>
+        <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
       </div>
     `,
   },
 
+  // ─── Forgot PIN OTP ────────────────────────────────────────
   "auth.forgot-pin": {
-    subject: "Reset Your Turbopay Transaction PIN",
+    subject: "Reset Your TurboPay Transaction PIN",
     html: (v) => `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <div style="text-align:center;margin-bottom:24px">
-          <h1 style="color:#1a1a2e;font-size:24px;margin:0">Turbopay</h1>
+          <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 16px">Your PIN reset code is:</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName} ${v.lastName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay PIN reset code is:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
-          <p style="color:#888;font-size:12px;margin:16px 0 0">Valid for 10 minutes.</p>
+          <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
         </div>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not request this, please contact TurboPay Support.</p>
+        <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
       </div>
     `,
   },
 
+  // ─── Login Verification OTP ────────────────────────────────
+  "auth.login-otp": {
+    subject: "Your TurboPay Login Verification Code",
+    html: (v) => `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+        </div>
+        <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay login verification code is:</p>
+          <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
+          <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
+        </div>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not attempt to log in, please secure your account immediately.</p>
+        <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+      </div>
+    `,
+  },
+
+  // ─── Transaction Confirmation OTP ──────────────────────────
+  "transaction.confirm-otp": {
+    subject: "Your TurboPay Transaction Confirmation Code",
+    html: (v) => `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+        </div>
+        <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay transaction confirmation code is:</p>
+          <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
+          <p style="color:#888;font-size:12px;margin:16px 0 0">Enter this code to authorize your transaction.</p>
+          <p style="color:#888;font-size:12px;margin:8px 0 0">This code expires in 5 minutes. Never share your OTP with anyone.</p>
+        </div>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+      </div>
+    `,
+  },
+
+  // ─── New Device Login Alert ─────────────────────────────────
+  "auth.new-device": {
+    subject: "New Device Access Alert — TurboPay",
+    html: (v) => `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+        </div>
+        <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px">A new device has been used to access your TurboPay account.</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Device:</strong> ${v.deviceInfo}</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Location:</strong> ${v.ip}</p>
+          <p style="color:#555;font-size:14px;margin:0 0 16px"><strong>Time:</strong> ${v.timestamp}</p>
+        </div>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If this was you, no action is required.</p>
+        <p style="color:#aaa;font-size:11px;text-align:center">If you do not recognize this activity, please secure your account immediately.</p>
+        <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+      </div>
+    `,
+  },
+
+  // ─── Transaction Notifications ─────────────────────────────
   "transaction.debit": {
-    subject: "Turbopay — Debit Alert",
+    subject: "TurboPay — Debit Alert",
     html: (v) => `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Debit Alert</h2>
@@ -131,12 +200,13 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <p style="margin:8px 0 0;color:#555;font-size:14px">${v.description}</p>
         </div>
         <p style="color:#888;font-size:12px;margin:16px 0 0">Balance: ${v.balance}</p>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
       </div>
     `,
   },
 
   "transaction.credit": {
-    subject: "Turbopay — Credit Alert",
+    subject: "TurboPay — Credit Alert",
     html: (v) => `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Credit Alert</h2>
@@ -144,13 +214,14 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <p style="margin:0;font-size:24px;font-weight:bold;color:#22c55e">${v.amount}</p>
           <p style="margin:8px 0 0;color:#555;font-size:14px">${v.description}</p>
         </div>
-        <p style="color:#888;font-size:12px;margin:16px 0 0">Balance: ${v.balance}</p>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">Reference: ${v.ref}</p>
+        <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
       </div>
     `,
   },
 
   "generic": {
-    subject: "Turbopay Notification",
+    subject: "TurboPay Notification",
     html: (v) => `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">${v.title ?? "Notification"}</h2>

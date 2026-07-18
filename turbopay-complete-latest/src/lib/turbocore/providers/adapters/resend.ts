@@ -36,38 +36,190 @@ interface ResendEmailResponse {
 }
 
 const SUBJECTS: Record<string, string> = {
-  "auth.otp": "Your Turbopay Verification Code",
-  "auth.verify-email": "Verify Your Turbopay Account",
-  "auth.forgot-password": "Reset Your Turbopay Password",
-  "auth.forgot-pin": "Reset Your Turbopay Transaction PIN",
-  "auth.kyc-approved": "Identity Verification Approved — Turbopay",
+  // Registration / Sign-Up
+  "auth.verify-email": "Confirm Your TurboPay Account Registration",
+  // OTP verification
+  "auth.otp": "Your TurboPay Verification Code",
+  // Forgot Password
+  "auth.forgot-password": "Reset Your TurboPay Password",
+  // Forgot PIN
+  "auth.forgot-pin": "Reset Your TurboPay Transaction PIN",
+  // Login Verification
+  "auth.login-otp": "Your TurboPay Login Verification Code",
+  // Transaction Confirmation
+  "transaction.confirm-otp": "Your TurboPay Transaction Confirmation Code",
+  // Device Alert
+  "auth.new-device": "New Device Access Alert — TurboPay",
+  // KYC
+  "auth.kyc-approved": "Identity Verification Approved — TurboPay",
   "auth.kyc-rejected": "Identity Verification Unsuccessful — Turbopay",
-  "transaction.debit": "Turbopay Debit Notification",
-  "transaction.credit": "Turbopay Credit Notification",
-  "transaction.failed": "Turbopay Transaction Failed",
-  "transaction.reversed": "Turbopay Reversal Notification",
-  "pin.locked": "Transaction PIN Locked — Turbopay",
-  "wallet.frozen": "Wallet Restricted — Turbopay",
-  "wallet.unfrozen": "Wallet Restriction Lifted — Turbopay",
+  // Transaction notifications
+  "transaction.debit": "TurboPay — Debit Alert",
+  "transaction.credit": "TurboPay — Credit Alert",
+  "transaction.failed": "TurboPay — Transaction Failed",
+  "transaction.reversed": "TurboPay — Reversal Notification",
+  // Security
+  "pin.locked": "Transaction PIN Locked — TurboPay",
+  "wallet.frozen": "Wallet Restricted — TurboPay",
+  "wallet.unfrozen": "Wallet Restriction Lifted — TurboPay",
 };
 
 const HTML_TEMPLATES: Record<string, string> = {
-  "transaction.debit":
-    "<p>Hi {{firstName}},</p><p>A debit of <strong>₦{{amount}}</strong> was made from your Turbopay wallet.</p><p>New balance: ₦{{balance}}<br/>Reference: {{ref}}</p>",
-  "transaction.credit":
-    "<p>Hi {{firstName}},</p><p>Your Turbopay wallet was credited with <strong>₦{{amount}}</strong>.</p><p>Reference: {{ref}}</p>",
-  "auth.otp":
-    "<p>Your Turbopay verification code is:</p><h2 style='letter-spacing:4px'>{{otp}}</h2><p>Valid for 10 minutes. Do not share this code with anyone.</p>",
-  "auth.verify-email":
-    "<div style='font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='text-align:center;margin-bottom:24px'><h1 style='color:#1a1a2e;font-size:24px;margin:0'>Turbopay</h1></div><div style='background:#f8f9fa;border-radius:12px;padding:32px;text-align:center'><p style='color:#555;font-size:14px;margin:0 0 16px'>Welcome to Turbopay! Verify your email address to get started.</p>{{verifyUrl}}<p style='color:#555;font-size:14px'>Your verification code is:</p><h2 style='color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0'>{{otp}}</h2><p style='color:#888;font-size:12px;margin:16px 0 0'>Valid for 10 minutes.</p></div><p style='color:#aaa;font-size:11px;text-align:center;margin-top:24px'>If you didn't create this account, ignore this email.</p></div>",
-  "auth.forgot-password":
-    "<div style='font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='text-align:center;margin-bottom:24px'><h1 style='color:#1a1a2e;font-size:24px;margin:0'>Turbopay</h1></div><div style='background:#f8f9fa;border-radius:12px;padding:32px;text-align:center'><p style='color:#555;font-size:14px;margin:0 0 16px'>You requested a password reset. Use the code below:</p><h2 style='color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0'>{{otp}}</h2><p style='color:#888;font-size:12px;margin:16px 0 0'>Valid for 10 minutes. If you didn't request this, secure your account immediately.</p></div></div>",
-  "auth.forgot-pin":
-    "<div style='font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='text-align:center;margin-bottom:24px'><h1 style='color:#1a1a2e;font-size:24px;margin:0'>Turbopay</h1></div><div style='background:#f8f9fa;border-radius:12px;padding:32px;text-align:center'><p style='color:#555;font-size:14px;margin:0 0 16px'>Your PIN reset code is:</p><h2 style='color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0'>{{otp}}</h2><p style='color:#888;font-size:12px;margin:16px 0 0'>Valid for 10 minutes.</p></div></div>",
-  "transaction.failed":
-    "<p>Hi {{firstName}},</p><p>Your payment of <strong>₦{{amount}}</strong> failed. Reference: {{ref}}.</p>",
-  "transaction.reversed":
-    "<p>Hi {{firstName}},</p><p>₦{{amount}} has been reversed to your wallet. Reference: {{ref}}. New balance: ₦{{balance}}.</p>",
+  // ─── Registration / Sign-Up OTP ────────────────────────────
+  "auth.verify-email": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}} {{lastName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Welcome to TurboPay! We are excited to have you onboard.</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">To complete your account registration, please enter the verification code below:</p>
+        <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">This verification code will expire in 5 minutes. For your security, do not share this code with anyone.</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not request this registration, please ignore this message.</p>
+      <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── Generic OTP (fallback) ────────────────────────────────
+  "auth.otp": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Your verification code is:</p>
+        <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── Forgot Password OTP ───────────────────────────────────
+  "auth.forgot-password": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}} {{lastName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">We received a request to reset your TurboPay account password.</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">To continue with the password reset process, enter the verification code below:</p>
+        <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">This verification code will expire in 5 minutes. For your security, do not share this code with anyone.</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not request a password reset, please secure your account or contact TurboPay Support.</p>
+      <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── Forgot PIN OTP ────────────────────────────────────────
+  "auth.forgot-pin": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}} {{lastName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay PIN reset code is:</p>
+        <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not request this, please contact TurboPay Support.</p>
+      <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── Login Verification OTP ────────────────────────────────
+  "auth.login-otp": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay login verification code is:</p>
+        <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not attempt to log in, please secure your account immediately.</p>
+      <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── Transaction Confirmation OTP ──────────────────────────
+  "transaction.confirm-otp": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay transaction confirmation code is:</p>
+        <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">Enter this code to authorize your transaction.</p>
+        <p style="color:#888;font-size:12px;margin:8px 0 0">This code expires in 5 minutes. Never share your OTP with anyone.</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── New Device Login Alert ─────────────────────────────────
+  "auth.new-device": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">A new device has been used to access your TurboPay account.</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Device:</strong> {{deviceInfo}}</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Location:</strong> {{ip}}</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px"><strong>Time:</strong> {{timestamp}}</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If this was you, no action is required.</p>
+      <p style="color:#aaa;font-size:11px;text-align:center">If you do not recognize this activity, please secure your account immediately.</p>
+      <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── Transaction Notifications ─────────────────────────────
+  "transaction.debit": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Debit Alert</h2>
+      <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:16px;border-radius:8px">
+        <p style="margin:0;font-size:24px;font-weight:bold;color:#ef4444">{{amount}}</p>
+        <p style="margin:8px 0 0;color:#555;font-size:14px">{{description}}</p>
+      </div>
+      <p style="color:#888;font-size:12px;margin:16px 0 0">Balance: {{balance}}</p>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  "transaction.credit": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Credit Alert</h2>
+      <div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:16px;border-radius:8px">
+        <p style="margin:0;font-size:24px;font-weight:bold;color:#22c55e">{{amount}}</p>
+        <p style="margin:8px 0 0;color:#555;font-size:14px">{{description}}</p>
+      </div>
+      <p style="color:#888;font-size:12px;margin:16px 0 0">Reference: {{ref}}</p>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  "transaction.failed": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Transaction Failed</h2>
+      <p style="color:#555;font-size:14px">Hi {{firstName}},</p>
+      <p style="color:#555;font-size:14px">Your payment of <strong>{{amount}}</strong> failed.</p>
+      <p style="color:#888;font-size:12px;margin:16px 0 0">Reference: {{ref}}</p>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  "transaction.reversed": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Reversal Notification</h2>
+      <p style="color:#555;font-size:14px">Hi {{firstName}},</p>
+      <p style="color:#555;font-size:14px">{{amount}} has been reversed to your wallet.</p>
+      <p style="color:#888;font-size:12px;margin:16px 0 0">Reference: {{ref}}<br/>New balance: {{balance}}</p>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
+    </div>`,
 };
 
 function render(template: string, vars: Record<string, string | number>): string {
