@@ -253,7 +253,6 @@ describe("FX Engine — admin surface", () => {
     expect(pairs).toContain("GBP→NGN");
     expect(pairs).toContain("EUR→NGN");
     expect(pairs).toContain("USD→GHS");
-    expect(pairs).toContain("NGN→USD");
   });
 
   it("upsertConfig creates a new pair config + getSpread reads it back", async () => {

@@ -74,6 +74,7 @@ describe("Webhook Handlers", () => {
         event: "subscription.create",
         data: {
           subscription_code: "SUB123",
+        reference: "SUB123",
           customer: { customer_code: "CUST123" },
           plan: { plan_code: "PLAN123" },
           status: "active",
@@ -90,6 +91,7 @@ describe("Webhook Handlers", () => {
         event: "dispute.create",
         data: {
           dispute_code: "DISP123",
+        reference: "DISP123",
           transaction: { reference: "TXN123" },
           category: "fraud",
           amount: 1000,
