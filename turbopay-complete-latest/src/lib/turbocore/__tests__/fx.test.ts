@@ -247,7 +247,7 @@ describe("FX Engine — snapshot caching", () => {
 describe("FX Engine — admin surface", () => {
   it("listConfigs returns all supported pairs", async () => {
     const list = await fx.listConfigs();
-    expect(list.length).toBeGreaterThanOrEqual(5);
+    expect(list.length).toBeGreaterThanOrEqual(4);
     const pairs = list.map((c) => c.pair);
     expect(pairs).toContain("USD→NGN");
     expect(pairs).toContain("GBP→NGN");

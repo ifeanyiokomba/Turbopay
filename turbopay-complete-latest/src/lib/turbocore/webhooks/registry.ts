@@ -146,6 +146,7 @@ class WebhookRegistryImpl {
   private dispatcher?: WebhookDispatcher;
 
   register(handler: WebhookHandler) {
+    if (!handler) return;
     this.handlers.set(handler.provider, handler);
   }
 

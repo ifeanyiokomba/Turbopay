@@ -94,7 +94,7 @@ describe("Webhook Framework", () => {
   });
 
   it("monnify handler normalises payload into WALLET_FUNDED event", () => {
-    const payload = { eventData: { transactionReference: "MNF-NORM-1", accountReference: "1234567890", amountPaid: "2000", paymentReference: "TP-NORM-1" } };
+    const payload = { eventType: "SUCCESSFUL_COLLECTION", eventData: { transactionReference: "MNF-NORM-1", accountReference: "1234567890", amountPaid: "2000", paymentReference: "TP-NORM-1" } };
     const events = monnifyWebhookHandler.normalize(payload, {});
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("WALLET_FUNDED");
