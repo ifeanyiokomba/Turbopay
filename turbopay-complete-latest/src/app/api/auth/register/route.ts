@@ -7,6 +7,7 @@ import { errorJson, json } from "@/lib/turbopay/api";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { isPasswordBreached } from "@/lib/turbopay/breach-check";
 import { referrals } from "@/lib/turbocore/referrals";
+import { normalizePhone } from "@/lib/turbocore/config/country-currency";
 import { z } from "zod";
 import { cookies } from "next/headers";
 
@@ -15,7 +16,7 @@ const schema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(20, "Username must be at most 20 characters").regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores").optional(),
   email: z.string().email("Enter a valid email").optional(),
   country: z.string().min(2).max(2).default("NG"), // ISO 3166-1 alpha-2
-  phone: z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format: +<country code><number>").optional(),
+  phone: z.string().regex(/^(\+[1-9]\d{6,14}|[0-9]{7,15})$/, "Enter a valid phone number").optional(),
   password: z.string().min(8, "Password must be at least 8 characters").max(128, "Password must be at most 128 characters")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
@@ -92,13 +93,16 @@ export async function POST(req: Request) {
   // If only email provided, default to EMAIL. If both, use the specified channel.
   const effectiveChannel = !email ? "SMS" : !phone ? "EMAIL" : parsed.data.verifyChannel;
 
+  // Normalize phone number with country code (auto-prepend if needed)
+  const normalizedPhone = phone ? normalizePhone(phone, country) : null;
+
   const user = await db.user.create({
     data: {
       fullName,
       username: username ? username.toLowerCase() : null,
       email: email ? email.toLowerCase() : null,
       country: country.toUpperCase(),
-      phone: phone ?? null,
+      phone: normalizedPhone,
       passwordHash: hashPassword(password),
       kycTier: 1,
       kycStatus: "UNVERIFIED",

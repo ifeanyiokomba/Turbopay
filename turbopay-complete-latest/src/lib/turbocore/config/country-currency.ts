@@ -28,6 +28,43 @@ export const COUNTRY_CURRENCY_MAP: Record<string, string> = {
   AU: "AUD",
 };
 
+/** ISO country code → phone dial code (without + prefix). */
+export const COUNTRY_PHONE_CODES: Record<string, string> = {
+  NG: "234",  // Nigeria
+  GH: "233",  // Ghana
+  US: "1",    // United States
+  GB: "44",   // United Kingdom
+  DE: "49",   // Germany
+  FR: "33",   // France
+  ES: "34",   // Spain
+  IT: "39",   // Italy
+  NL: "31",   // Netherlands
+  IE: "353",  // Ireland
+  KE: "254",  // Kenya
+  ZA: "27",   // South Africa
+  CA: "1",    // Canada
+  AU: "61",   // Australia
+};
+
+/**
+ * Normalize a phone number to international format based on country.
+ * If the phone already starts with '+', return as-is.
+ * Otherwise, prepend the country dial code.
+ */
+export function normalizePhone(phone: string, country: string): string {
+  // Already in international format
+  if (phone.startsWith("+")) return phone;
+  
+  // Get country dial code
+  const dialCode = COUNTRY_PHONE_CODES[country.toUpperCase()];
+  if (!dialCode) return phone; // Unknown country, return as-is
+  
+  // Remove leading zeros (local format often has them)
+  const cleaned = phone.replace(/^0+/, "");
+  
+  return `+${dialCode}${cleaned}`;
+}
+
 /** Country display metadata. */
 interface CountryInfo {
   code: string;
