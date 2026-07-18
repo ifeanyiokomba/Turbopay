@@ -80,7 +80,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
             : `<p style="color:#555;font-size:14px">Your verification code is:</p>
                <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>`
           }
-          <p style="color:#888;font-size:12px;margin:16px 0 0">Valid for 24 hours.</p>
+          <p style="color:#888;font-size:12px;margin:16px 0 0">Valid for 10 minutes.</p>
         </div>
         <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">
           If you didn't create this account, ignore this email.

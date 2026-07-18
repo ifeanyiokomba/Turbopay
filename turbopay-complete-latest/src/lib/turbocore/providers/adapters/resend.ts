@@ -37,6 +37,7 @@ interface ResendEmailResponse {
 
 const SUBJECTS: Record<string, string> = {
   "auth.otp": "Your Turbopay Verification Code",
+  "auth.verify-email": "Verify Your Turbopay Account",
   "auth.kyc-approved": "Identity Verification Approved — Turbopay",
   "auth.kyc-rejected": "Identity Verification Unsuccessful — Turbopay",
   "transaction.debit": "Turbopay Debit Notification",
@@ -55,6 +56,8 @@ const HTML_TEMPLATES: Record<string, string> = {
     "<p>Hi {{firstName}},</p><p>Your Turbopay wallet was credited with <strong>₦{{amount}}</strong>.</p><p>Reference: {{ref}}</p>",
   "auth.otp":
     "<p>Your Turbopay verification code is:</p><h2 style='letter-spacing:4px'>{{otp}}</h2><p>Valid for 10 minutes. Do not share this code with anyone.</p>",
+  "auth.verify-email":
+    "<div style='font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='text-align:center;margin-bottom:24px'><h1 style='color:#1a1a2e;font-size:24px;margin:0'>Turbopay</h1></div><div style='background:#f8f9fa;border-radius:12px;padding:32px;text-align:center'><p style='color:#555;font-size:14px;margin:0 0 16px'>Welcome to Turbopay! Verify your email address to get started.</p>{{verifyUrl}}<p style='color:#555;font-size:14px'>Your verification code is:</p><h2 style='color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0'>{{otp}}</h2><p style='color:#888;font-size:12px;margin:16px 0 0'>Valid for 10 minutes.</p></div><p style='color:#aaa;font-size:11px;text-align:center;margin-top:24px'>If you didn't create this account, ignore this email.</p></div>",
   "transaction.failed":
     "<p>Hi {{firstName}},</p><p>Your payment of <strong>₦{{amount}}</strong> failed. Reference: {{ref}}.</p>",
   "transaction.reversed":
