@@ -53,7 +53,7 @@ import { toast } from "sonner";
 import { useApp, type ViewKey } from "@/components/turbopay/store";
 import { apiPost, useApi, mutateApi } from "@/lib/turbopay/client";
 import { Logo, Wordmark } from "@/components/turbopay/logo";
-import { LocaleSwitcher } from "@/components/turbopay/parts/locale-switcher";
+import { AiSupport } from "@/components/turbopay/parts/ai-support";
 import { I18nProvider } from "@/components/turbopay/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -569,7 +569,6 @@ export function AppShell() {
             </div>
 
             <div className="flex items-center gap-1.5">
-              <LocaleSwitcher />
               {view !== "wallet" && view !== "transfer" && (
                 <Button
                   size="sm"
@@ -668,7 +667,7 @@ export function AppShell() {
           { key: "dashboard", icon: LayoutDashboard, label: "Home" },
           { key: "wallet", icon: Wallet, label: "Wallet" },
           { key: "transfer", icon: Send, label: "Send" },
-          { key: "airtime", icon: Smartphone, label: "Airtime" },
+          { key: "bills", icon: ReceiptText, label: "Bills" },
           { key: "history", icon: Clock, label: "History" },
         ] as const).map((item) => {
           const active = view === item.key;
@@ -696,6 +695,7 @@ export function AppShell() {
       <NotificationsDialog open={showNotifications} onOpenChange={setShowNotifications} />
     </div>
     </I18nProvider>
+    <AiSupport />
     </PinDialogProvider>
   );
 }

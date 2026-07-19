@@ -250,31 +250,32 @@ function FundDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenChang
   const [loading, setLoading] = React.useState(false);
   const [mode, setMode] = React.useState<"card" | "bank_transfer" | "ussd" | "demo">("card");
 
-  // Dynamic funding methods based on user's country
+  // Dynamic funding methods based on user's country — with recommended flag
   const fundingMethods = React.useMemo(() => {
     const country = user?.country ?? "NG";
-    const methods: Array<{ id: string; label: string; description: string; providers: string[] }> = [];
+    const methods: Array<{ id: string; label: string; description: string; providers: string[]; recommended?: boolean; fee?: string }> = [];
 
-    // Card payments — available in most countries
-    methods.push({ id: "card", label: "Debit Card", description: "Pay with your debit or credit card", providers: ["Stripe", "Paystack"] });
-
-    // Bank transfer — available in NG and other African countries
-    if (["NG", "GH", "KE", "ZA"].includes(country)) {
-      methods.push({ id: "bank_transfer", label: "Bank Transfer", description: "Transfer from any bank account", providers: ["Monnify", "Paystack"] });
-    }
-
-    // USSD — Nigeria specific
+    // Country-specific methods
     if (country === "NG") {
-      methods.push({ id: "ussd", label: "USSD", description: "Pay via USSD from your phone", providers: ["Paystack", "Flutterwave"] });
-    }
-
-    // Mobile money — for non-NG African countries
-    if (["GH", "KE", "ZA"].includes(country)) {
-      methods.push({ id: "mobile_money", label: "Mobile Money", description: "Pay with MoMo or M-Pesa", providers: ["Onafriq"] });
+      methods.push({ id: "bank_transfer", label: "Bank Transfer", description: "Transfer from any Nigerian bank", providers: ["Monnify"], recommended: true, fee: "Free" });
+      methods.push({ id: "card", label: "Debit Card", description: "Pay with your Naira card", providers: ["Paystack"], fee: "1.5%" });
+      methods.push({ id: "ussd", label: "USSD", description: "Pay via USSD from your phone", providers: ["Paystack"], fee: "1.5%" });
+    } else if (country === "GH") {
+      methods.push({ id: "mobile_money", label: "MTN MoMo", description: "Pay with MTN Mobile Money", providers: ["MTN MoMo"], recommended: true, fee: "1%" });
+      methods.push({ id: "card", label: "Debit Card", description: "Pay with your card", providers: ["Paystack"], fee: "2%" });
+    } else if (country === "KE") {
+      methods.push({ id: "mobile_money", label: "M-Pesa", description: "Pay with M-Pesa", providers: ["M-Pesa"], recommended: true, fee: "1%" });
+      methods.push({ id: "card", label: "Debit Card", description: "Pay with your card", providers: ["Paystack"], fee: "2%" });
+    } else if (country === "ZA") {
+      methods.push({ id: "card", label: "Debit Card", description: "Pay with your card", providers: ["Paystack"], recommended: true, fee: "2.5%" });
+      methods.push({ id: "mobile_money", label: "Mobile Money", description: "Pay with MTN MoMo", providers: ["MTN MoMo"], fee: "1.5%" });
+    } else {
+      // Default: card payment
+      methods.push({ id: "card", label: "Debit Card", description: "Pay with your card", providers: ["Paystack"], recommended: true, fee: "2.5%" });
     }
 
     // Demo mode — always available for testing
-    methods.push({ id: "demo", label: "Demo", description: "Simulate funding (sandbox)", providers: ["Demo"] });
+    methods.push({ id: "demo", label: "Demo", description: "Simulate funding (sandbox)", providers: ["Demo"], fee: "Free" });
 
     return methods;
   }, [user?.country]);
@@ -348,14 +349,22 @@ function FundDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenChang
                 key={method.id}
                 type="button"
                 onClick={() => setMode(method.id as any)}
-                className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                className={`relative rounded-lg border p-3 text-left text-sm transition-colors ${
                   mode === method.id
-                    ? "border-primary bg-primary/5 text-foreground"
+                    ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
                     : "border-border text-muted-foreground hover:border-primary/50"
                 }`}
               >
+                {method.recommended && (
+                  <span className="absolute -top-2 right-2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground">
+                    Recommended
+                  </span>
+                )}
                 <p className="font-medium">{method.label}</p>
-                <p className="mt-0.5 text-[11px]">{method.providers[0]}</p>
+                <p className="mt-0.5 text-[11px]">{method.description}</p>
+                {method.fee && (
+                  <p className="mt-1 text-[10px] font-medium text-success">{method.fee} fee</p>
+                )}
               </button>
             ))}
           </div>
