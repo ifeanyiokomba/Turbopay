@@ -247,8 +247,9 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
 function FundDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenChange: (o: boolean) => void; onDone: () => void }) {
   const user = useApp((s) => s.user);
   const [amount, setAmount] = React.useState("");
+  const [phone, setPhone] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [mode, setMode] = React.useState<"card" | "bank_transfer" | "ussd" | "demo">("card");
+  const [mode, setMode] = React.useState<"card" | "bank_transfer" | "ussd" | "mobile_money" | "demo">("card");
 
   // Dynamic funding methods based on user's country — with recommended flag
   const fundingMethods = React.useMemo(() => {
@@ -315,6 +316,26 @@ function FundDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenChang
           return;
         }
         throw new Error("Failed to initialize payment");
+      } else if (mode === "mobile_money") {
+        if (!phone || phone.length < 8) {
+          toast.error("Enter a valid phone number");
+          setLoading(false);
+          return;
+        }
+        const country = user?.country ?? "NG";
+        const reference = `FUND-MOMO-${Date.now()}`;
+        const res = await apiPost<{ id: string; status: string }>("/api/mobile-money/collect", {
+          phoneNumber: phone,
+          amountMinor: Math.round(amt * 100),
+          currency: country === "KE" ? "KES" : country === "GH" ? "GHS" : "ZAR",
+          country,
+          reference,
+        });
+        toast.success(`Payment request sent to ${phone}. Check your phone to approve.`);
+        setAmount("");
+        setPhone("");
+        onOpenChange(false);
+        onDone();
       } else {
         await apiPost("/api/wallet/fund", { amountNaira: amt });
         toast.success(`₦${amt.toLocaleString()} added to your wallet`);
@@ -381,6 +402,20 @@ function FundDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenChang
               autoFocus
             />
           </div>
+          {mode === "mobile_money" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^0-9+]/g, ""))}
+                placeholder={user?.country === "KE" ? "+254..." : user?.country === "GH" ? "+233..." : "+27..."}
+                className="text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">You'll receive a prompt on your phone to approve the payment.</p>
+            </div>
+          )}
           <div className="grid grid-cols-4 gap-2">
             {[1000, 5000, 10000, 25000].map((a) => (
               <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>
