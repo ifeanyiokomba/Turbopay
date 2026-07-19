@@ -24,6 +24,7 @@ import { z } from "zod";
 
 /** Static manifest: which fields each provider requires. */
 const PROVIDER_MANIFEST: Record<string, { contract: string; fields: string[] }> = {
+  // Existing providers
   monnify: { contract: "virtualAccount", fields: ["apiKey", "secretKey", "contractCode", "baseUrl"] },
   paystack: { contract: "localTransfer", fields: ["secretKey", "publicKey", "baseUrl"] },
   stripe: { contract: "walletFunding", fields: ["secretKey", "publishableKey", "webhookSecret", "baseUrl"] },
@@ -38,6 +39,12 @@ const PROVIDER_MANIFEST: Record<string, { contract: string; fields: string[] }> 
   flutterwave: { contract: "localTransfer", fields: ["clientId", "clientSecret", "webhookHash", "baseUrl"] },
   onafriq: { contract: "walletFunding", fields: ["apiKey", "baseUrl"] },
   otpdev: { contract: "notification", fields: ["apiKey", "senderId", "templateId"] },
+  
+  // Mobile Money Providers
+  "mtn-momo": { contract: "mobileMoney", fields: ["apiUser", "apiKey", "subscriptionKey", "environment", "country", "currency", "webhookUrl"] },
+  "airtel-money": { contract: "mobileMoney", fields: ["clientId", "clientSecret", "apiKey", "environment", "country", "currency", "webhookUrl"] },
+  "m-pesa": { contract: "mobileMoney", fields: ["consumerKey", "consumerSecret", "passKey", "businessShortCode", "environment", "country", "currency", "webhookUrl"] },
+  "paga": { contract: "mobileMoney", fields: ["apiKey", "merchantId", "secretKey", "environment", "country", "currency", "webhookUrl"] },
 };
 
 /** GET — list all provider configs + infrastructure services with credential status. */
