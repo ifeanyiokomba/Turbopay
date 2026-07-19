@@ -1,6 +1,6 @@
 /** TurboCore shared domain types (provider-agnostic, multi-product). */
 
-export type Currency = "NGN" | "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "GHS" | "KES" | "ZAR";
+export type Currency = "NGN" | "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "GHS" | "KES" | "ZAR" | "UGX" | "TZS" | "XAF" | "XOF" | "RWF" | "ZMW" | "MWK" | "MGA" | "SSP" | "ZWL" | "CDF" | "MZN" | "LSL" | "SZL" | "EGP";
 
 export type ProductId = "turbopay" | "billswift" | "merchant" | "business" | "developer";
 
