@@ -115,6 +115,7 @@ const SupportAdminView = React.lazy(() => import("@/components/turbopay/views/ad
 const KnowledgeBaseAdminView = React.lazy(() => import("@/components/turbopay/views/admin/knowledge-base-admin").then(m => ({ default: m.KnowledgeBaseAdminView })));
 const VirtualCardsAdmin = React.lazy(() => import("@/components/turbopay/views/admin/virtual-cards-admin").then(m => ({ default: m.VirtualCardsAdmin })));
 const BulkPaymentsAdmin = React.lazy(() => import("@/components/turbopay/views/admin/bulk-payments").then(m => ({ default: m.BulkPaymentsAdmin })));
+const SecurityComplianceAdmin = React.lazy(() => import("@/components/turbopay/views/admin/security-compliance").then(m => ({ default: m.SecurityComplianceAdmin })));
 import { PinDialogProvider } from "@/components/turbopay/parts/pin-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -204,6 +205,7 @@ const ADMIN_NAV: NavGroup[] = [
       { key: "admin-webhooks", label: "Webhooks", icon: Webhook },
       { key: "admin-testimonials", label: "Testimonials", icon: Star },
       { key: "admin-system", label: "System Health", icon: Activity },
+      { key: "admin-security-compliance", label: "Security & Compliance", icon: Shield },
       { key: "admin-notifications", label: "Notifications Log", icon: Megaphone },
     ],
   },
@@ -265,6 +267,7 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   "admin-reconciliation": "Reconciliation",
   "admin-webhooks": "Webhook Management",
   "admin-system": "System Health",
+  "admin-security-compliance": "Security & Compliance",
   "admin-notifications": "Notifications Log",
   "admin-testimonials": "Testimonials",
   "admin-team": "Team Management",
@@ -423,6 +426,7 @@ export function AppShell() {
       case "admin-reconciliation": return isAdmin ? <Reconciliation /> : <DashboardView />;
       case "admin-webhooks": return isAdmin ? <WebhookManagement /> : <DashboardView />;
       case "admin-system": return isAdmin ? <SystemHealth /> : <DashboardView />;
+      case "admin-security-compliance": return isAdmin ? <SecurityComplianceAdmin /> : <DashboardView />;
       case "admin-notifications": return isAdmin ? <NotificationCenter /> : <DashboardView />;
       case "admin-testimonials": return isAdmin ? <TestimonialsManagement /> : <DashboardView />;
       case "admin-team": return isAdmin ? <TeamManagement /> : <DashboardView />;

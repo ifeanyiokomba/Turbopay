@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useApi } from "@/lib/turbopay/client";
+import { TrustSection } from "@/components/turbopay/parts/trust-section";
 
 interface Testimonial {
   id: string;
@@ -145,32 +146,8 @@ export function LandingPage({ onGetStarted }: { onGetStarted: (tab?: "login" | "
       </section>
 
       {/* Security */}
-      <section id="security" className="border-t bg-primary/5 py-16 sm:py-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Security you can trust</h2>
-              <p className="mt-3 text-muted-foreground">
-                Your money is protected by the same technology used by Nigeria's top banks.
-              </p>
-              <div className="mt-6 space-y-3">
-                <SecurityItem text="Every transaction requires your personal PIN — no one can move your money without it" />
-                <SecurityItem text="Your sensitive information is encrypted and stored with bank-level protection" />
-                <SecurityItem text="Real-time fraud monitoring watches every transaction 24/7" />
-                <SecurityItem text="Funds are held securely by our CBN-licensed banking partners" />
-                <SecurityItem text="Instant alerts notify you of every activity on your account" />
-                <SecurityItem text="Full compliance with Nigerian data protection regulations (NDPA)" />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <StatBox value="₦0" label="Hidden fees" />
-              <StatBox value="< 2s" label="Transfer speed" />
-              <StatBox value="24/7" label="Always available" />
-              <StatBox value="100%" label="NDPR compliant" />
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Trust & Security Section — dynamically loaded from database */}
+      <TrustSection />
 
       {/* Why Turbopay */}
       <section className="border-t bg-muted/30 py-16 sm:py-24">

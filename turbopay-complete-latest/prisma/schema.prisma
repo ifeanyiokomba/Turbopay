@@ -2117,3 +2117,70 @@ model PaymentLinkPayment {
   @@index([status])
   @@index([createdAt])
 }
+
+// ─── Trust, Security & Compliance ────────────────────────────
+
+model ComplianceCertificate {
+  id                String   @id @default(cuid())
+  name              String   // e.g. "PCI DSS", "ISO 27001"
+  description       String?
+  status            String   @default("PENDING") // PENDING | VERIFIED | EXPIRED | INACTIVE
+  logoUrl           String?
+  verificationUrl   String?
+  certificateNumber String?
+  dateIssued        DateTime?
+  expiryDate        DateTime?
+  displayOnHomepage Boolean  @default(false)
+  displayPriority   Int      @default(0)
+  internalNotes     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([displayOnHomepage])
+  @@index([displayPriority])
+}
+
+model SecurityBadge {
+  id              String   @id @default(cuid())
+  name            String   // e.g. "SSL Secured", "AES-256 Encryption"
+  description     String?
+  icon            String?  // Lucide icon name
+  enabled         Boolean  @default(true)
+  displayPriority Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([displayPriority])
+}
+
+model ProviderLogo {
+  id              String   @id @default(cuid())
+  name            String   // e.g. "MTN MoMo", "Paystack"
+  logoUrl         String?
+  websiteUrl      String?
+  category        String?  // e.g. "mobile_money", "card_processor"
+  enabled         Boolean  @default(true)
+  displayPriority Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([displayPriority])
+  @@index([category])
+}
+
+model TrustMessage {
+  id              String   @id @default(cuid())
+  title           String   // e.g. "Secure Payments"
+  message         String   // The trust message text
+  type            String   @default("info") // info | warning | success
+  enabled         Boolean  @default(true)
+  displayPriority Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([displayPriority])
+}

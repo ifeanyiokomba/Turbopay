@@ -27,6 +27,7 @@ export type ViewKey =
   | "admin-reconciliation"
   | "admin-webhooks"
   | "admin-system"
+  | "admin-security-compliance"
   | "admin-notifications"
   | "admin-testimonials"
   | "admin-team"
