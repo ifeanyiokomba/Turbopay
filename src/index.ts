@@ -113,7 +113,17 @@ export {
   BulkPaymentValidationResult,
   BulkPaymentValidationError,
   BulkPaymentValidationWarning,
-  BulkPaymentReport
+  BulkPaymentReport,
+
+  // Geo-routing types
+  GeoZone,
+  ComplianceLevel,
+  CountryConfig,
+  RegulatoryRequirement,
+  TransactionLimits,
+  GeoRoute,
+  GeoRoutingContext,
+  GeoRoutingDecision
 } from './types';
 
 // =============================================================================
@@ -196,6 +206,11 @@ export {
   createWebhookMiddleware,
   createWebhookRoute
 } from './services/webhook-handler';
+
+export {
+  GeoRoutedOrchestrator,
+  GeoRoutingAuditEntry
+} from './services/geo-router';
 
 // =============================================================================
 // UTILITIES

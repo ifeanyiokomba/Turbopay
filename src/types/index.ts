@@ -797,3 +797,101 @@ export class ProviderFeatureUnavailableError extends Error {
     this.feature = feature;
   }
 }
+
+// =============================================================================
+// GEO-ROUTING TYPES
+// =============================================================================
+
+export type GeoZone =
+  | 'west_africa'
+  | 'east_africa'
+  | 'southern_africa'
+  | 'north_africa'
+  | 'central_africa'
+  | 'global';
+
+export type ComplianceLevel = 'basic' | 'enhanced' | 'strict';
+
+export interface CountryConfig {
+  country_code: string;
+  country_name: string;
+  zone: GeoZone;
+  currencies: string[];
+  primary_currency: string;
+  default_provider: ProviderName;
+  fallback_providers: ProviderName[];
+  compliance_level: ComplianceLevel;
+  regulatory_requirements: RegulatoryRequirement[];
+  transaction_limits: TransactionLimits;
+  supported_operations: PaymentOperation[];
+  requires_kyc_tier: number;
+  cross_border_enabled: boolean;
+}
+
+export interface RegulatoryRequirement {
+  type: 'kyc' | 'aml' | 'transaction_limit' | 'license' | 'data_residency';
+  description: string;
+  mandatory: boolean;
+  max_transaction_without?: number;
+  documentation_required?: string[];
+}
+
+export interface TransactionLimits {
+  min_amount: number;
+  max_amount: number;
+  daily_limit: number;
+  monthly_limit: number;
+  single_transfer_limit: number;
+  currency: string;
+}
+
+export interface GeoRoute {
+  country: string;
+  currency: string;
+  operation: PaymentOperation;
+  primary_provider: ProviderName;
+  fallback_chain: ProviderName[];
+  estimated_cost: number;
+  estimated_latency: number;
+  compliance_check: boolean;
+  cross_border: boolean;
+}
+
+export interface GeoCrossBorderCorridor {
+  source_country: string;
+  destination_country: string;
+  source_currency: string;
+  destination_currency: string;
+  supported_providers: ProviderName[];
+  fx_provider: ProviderName;
+  fx_markup_percent: number;
+  settlement_speed: 'instant' | 'same_day' | 't1' | 't2' | 't3';
+  min_amount: number;
+  max_amount: number;
+  compliance_required: string[];
+}
+
+export interface GeoRoutingContext {
+  source_country: string;
+  destination_country?: string;
+  currency: string;
+  operation: PaymentOperation;
+  amount: number;
+  customer_kyc_tier?: number;
+  preferred_provider?: ProviderName;
+  idempotency_key?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface GeoRoutingDecision {
+  provider: ProviderName;
+  fallback_chain: ProviderName[];
+  estimated_fee: number;
+  fx_rate?: number;
+  fx_markup?: number;
+  compliance_verified: boolean;
+  regulatory_warnings: string[];
+  route_type: 'domestic' | 'cross_border' | 'regional';
+  zone: GeoZone;
+  reason: string;
+}

@@ -14,6 +14,8 @@ import { AnalyticsDashboard } from '../admin/dashboard/analytics-dashboard';
 import { AuditLogService } from '../admin/dashboard/audit-log';
 import { AdminAuthService } from '../admin/auth/auth.service';
 import { CustomerAuthService } from '../auth/customer-auth.service';
+import { GeoRoutedOrchestrator } from '../services/geo-router';
+import { GeoRoutingContext } from '../types';
 
 // =============================================================================
 // ROUTE DEFINITIONS
@@ -26,6 +28,7 @@ export interface Route {
   middleware?: any[];
   description: string;
   requiredBodyFields?: string[];
+  auth?: 'admin' | 'customer' | 'none';
 }
 
 export class TurboPayRoutes {
@@ -45,6 +48,7 @@ export class TurboPayRoutes {
   private compliance: any;
   private mobileMoney: any;
   private fundingWorkflow: any;
+  private geoRouter: GeoRoutedOrchestrator | undefined;
 
   constructor(deps: {
     processor: TransactionProcessor;
@@ -63,6 +67,7 @@ export class TurboPayRoutes {
     compliance?: any;
     mobileMoney?: any;
     fundingWorkflow?: any;
+    geoRouter?: GeoRoutedOrchestrator;
   }) {
     this.processor = deps.processor;
     this.international = deps.international;
@@ -80,6 +85,7 @@ export class TurboPayRoutes {
     this.compliance = deps.compliance;
     this.mobileMoney = deps.mobileMoney;
     this.fundingWorkflow = deps.fundingWorkflow;
+    this.geoRouter = deps.geoRouter;
   }
 
   // ===========================================================================
@@ -108,6 +114,8 @@ export class TurboPayRoutes {
       ...this.adminRoutes(),
       // HEALTH & ANALYTICS
       ...this.healthRoutes(),
+      // GEO-ROUTING
+      ...this.geoRoutes(),
     ];
   }
 
@@ -203,6 +211,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/payments/initialize',
         description: 'Initialize a payment',
+        auth: 'customer',
         requiredBodyFields: ['amount', 'currency', 'country'],
         handler: async (req, res) => {
           const result = await this.processor.processPayment({
@@ -218,6 +227,7 @@ export class TurboPayRoutes {
         method: 'GET',
         path: '/api/v1/payments/verify/:reference',
         description: 'Verify a payment',
+        auth: 'customer',
         handler: async (req, res) => {
           const result = await this.processor.verifyPayment(req.params.reference, req.query.provider);
           res.json(result);
@@ -227,6 +237,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/payments/refund',
         description: 'Process a refund',
+        auth: 'customer',
         requiredBodyFields: ['transaction_id', 'amount'],
         handler: async (req, res) => {
           const result = await this.processor.processRefund({
@@ -253,6 +264,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/transfers/single',
         description: 'Process a single transfer',
+        auth: 'customer',
         requiredBodyFields: ['amount', 'currency', 'country'],
         handler: async (req, res) => {
           const result = await this.processor.processTransfer({
@@ -268,6 +280,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/transfers/bulk',
         description: 'Process bulk transfers',
+        auth: 'customer',
         requiredBodyFields: ['transfers'],
         handler: async (req, res) => {
           const result = await this.processor.processBulkTransfers(
@@ -311,6 +324,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/bills/pay',
         description: 'Pay a bill',
+        auth: 'customer',
         requiredBodyFields: ['amount', 'currency', 'country'],
         handler: async (req, res) => {
           const result = await this.processor.processBillPayment({
@@ -344,6 +358,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/virtual-accounts',
         description: 'Create virtual account',
+        auth: 'customer',
         requiredBodyFields: ['country', 'currency'],
         handler: async (req, res) => {
           const result = await this.processor.processVirtualAccount({
@@ -368,6 +383,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/cards/create',
         description: 'Create virtual card',
+        auth: 'customer',
         requiredBodyFields: ['currency', 'amount'],
         handler: async (req, res) => {
           try {
@@ -385,6 +401,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/cards/block',
         description: 'Block virtual card',
+        auth: 'customer',
         requiredBodyFields: ['card_id'],
         handler: async (req, res) => {
           try {
@@ -403,6 +420,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/cards/unblock',
         description: 'Unblock virtual card',
+        auth: 'customer',
         requiredBodyFields: ['card_id'],
         handler: async (req, res) => {
           try {
@@ -420,6 +438,7 @@ export class TurboPayRoutes {
         method: 'GET',
         path: '/api/v1/cards',
         description: 'List user cards',
+        auth: 'customer',
         handler: async (req, res) => {
           const cards = this.virtualCard.getUserCards(req.user?.id);
           res.json({ success: true, cards });
@@ -447,6 +466,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/international/transfer',
         description: 'Process international transfer',
+        auth: 'customer',
         requiredBodyFields: ['amount', 'source_currency', 'destination_currency'],
         handler: async (req, res) => {
           const result = await this.international.transfer(req.body);
@@ -469,6 +489,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/international/rates',
         description: 'Compare exchange rates',
+        auth: 'customer',
         requiredBodyFields: ['from_currency', 'to_currency', 'amount'],
         handler: async (req, res) => {
           const rates = await this.international.compareExchangeRates(
@@ -492,6 +513,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/account/create',
         description: 'Create country-tailored account',
+        auth: 'customer',
         handler: async (req, res) => {
           try {
             const account = await this.countryAccounts.createAccount(req.body);
@@ -505,6 +527,7 @@ export class TurboPayRoutes {
         method: 'GET',
         path: '/api/v1/account',
         description: 'Get user account',
+        auth: 'customer',
         handler: async (req, res) => {
           const account = this.countryAccounts.getAccount(req.user?.id);
           res.json({ success: true, account });
@@ -514,6 +537,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/wallet/fund',
         description: 'Fund wallet',
+        auth: 'customer',
         handler: async (req, res) => {
           const result = await this.countryAccounts.fundWallet({
             ...req.body,
@@ -526,6 +550,7 @@ export class TurboPayRoutes {
         method: 'GET',
         path: '/api/v1/wallet/balance',
         description: 'Get wallet balance',
+        auth: 'customer',
         handler: async (req, res) => {
           const wallets = this.multiCurrency.getUserWallets(req.user?.id);
           res.json({ success: true, wallets });
@@ -535,6 +560,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/wallet/convert',
         description: 'Convert currency',
+        auth: 'customer',
         handler: async (req, res) => {
           const result = await this.countryAccounts.convertCurrency({
             ...req.body,
@@ -547,6 +573,7 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/wallet/add-currency',
         description: 'Add additional currency',
+        auth: 'customer',
         handler: async (req, res) => {
           const result = await this.multiCurrency.addCurrency({
             ...req.body,
@@ -770,6 +797,23 @@ export class TurboPayRoutes {
   private healthRoutes(): Route[] {
     return [
       {
+        method: 'POST',
+        path: '/api/v1/webhooks/:provider',
+        description: 'Receive webhook from payment provider',
+        handler: async (req, res) => {
+          try {
+            const result = await this.processor.processWebhook(
+              req.params.provider,
+              req.body,
+              req.headers
+            );
+            res.json(result);
+          } catch (error) {
+            res.status(500).json({ error: (error as Error).message });
+          }
+        }
+      },
+      {
         method: 'GET',
         path: '/api/v1/health',
         description: 'System health check',
@@ -834,6 +878,163 @@ export class TurboPayRoutes {
           if (!await this.requireAdmin(req, res)) return;
           const comparison = this.analytics.getCostComparison(req.query.operation);
           res.json({ success: true, comparison });
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // GEO-ROUTING ROUTES
+  // ===========================================================================
+
+  private geoRoutes(): Route[] {
+    if (!this.geoRouter) return [];
+
+    return [
+      {
+        method: 'POST',
+        path: '/api/v1/geo/route',
+        description: 'Get geo-routing decision for a transaction',
+        auth: 'customer',
+        requiredBodyFields: ['source_country', 'currency', 'operation', 'amount'],
+        handler: async (req, res) => {
+          try {
+            const context: GeoRoutingContext = {
+              source_country: req.body.source_country,
+              destination_country: req.body.destination_country,
+              currency: req.body.currency,
+              operation: req.body.operation,
+              amount: req.body.amount,
+              customer_kyc_tier: req.body.customer_kyc_tier,
+              preferred_provider: req.body.preferred_provider
+            };
+            const decision = this.geoRouter!.route(context);
+            res.json({ success: true, decision });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/geo/validate',
+        description: 'Validate a transaction against geo-routing rules',
+        auth: 'customer',
+        requiredBodyFields: ['source_country', 'currency', 'operation', 'amount'],
+        handler: async (req, res) => {
+          try {
+            const context: GeoRoutingContext = {
+              source_country: req.body.source_country,
+              destination_country: req.body.destination_country,
+              currency: req.body.currency,
+              operation: req.body.operation,
+              amount: req.body.amount,
+              customer_kyc_tier: req.body.customer_kyc_tier
+            };
+            const validation = this.geoRouter!.validateTransaction(context);
+            res.json({ success: true, validation });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/geo/preview',
+        description: 'Preview routing decision with alternatives without executing',
+        auth: 'customer',
+        requiredBodyFields: ['source_country', 'currency', 'operation', 'amount'],
+        handler: async (req, res) => {
+          try {
+            const context: GeoRoutingContext = {
+              source_country: req.body.source_country,
+              destination_country: req.body.destination_country,
+              currency: req.body.currency,
+              operation: req.body.operation,
+              amount: req.body.amount,
+              customer_kyc_tier: req.body.customer_kyc_tier,
+              preferred_provider: req.body.preferred_provider
+            };
+            const preview = this.geoRouter!.previewRouting(context);
+            res.json({ success: true, preview });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/geo/countries',
+        description: 'List all supported countries with geo configs',
+        handler: async (req, res) => {
+          const countries = this.geoRouter!.getSupportedCountries();
+          res.json({ success: true, countries });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/geo/countries/:code',
+        description: 'Get country config by code',
+        handler: async (req, res) => {
+          const config = this.geoRouter!.getCountryConfig(req.params.code);
+          if (!config) {
+            res.status(404).json({ success: false, error: 'Country not found' });
+            return;
+          }
+          res.json({ success: true, config });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/geo/corridors',
+        description: 'List cross-border corridors',
+        handler: async (req, res) => {
+          const corridors = req.query.source
+            ? this.geoRouter!.getCorridorsFromCountry(req.query.source as string)
+            : this.geoRouter!.getSupportedCountries().length > 0
+              ? this.geoRouter!['crossBorderCorridors']
+              : [];
+          res.json({ success: true, corridors });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/geo/corridors/:source/:destination',
+        description: 'Get specific cross-border corridor',
+        handler: async (req, res) => {
+          const corridor = this.geoRouter!.getCorridor(req.params.source, req.params.destination);
+          if (!corridor) {
+            res.status(404).json({ success: false, error: 'Corridor not found' });
+            return;
+          }
+          res.json({ success: true, corridor });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/geo/analytics',
+        description: 'Get geo-routing analytics',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const analytics = this.geoRouter!.getRouteAnalytics();
+          res.json({ success: true, analytics });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/geo/audit-log',
+        description: 'Get geo-routing audit log',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const log = this.geoRouter!.getAuditLog({
+            country: req.query.country as string,
+            provider: req.query.provider as any,
+            route_type: req.query.route_type as any,
+            since: req.query.since ? new Date(req.query.since as string) : undefined
+          });
+          res.json({ success: true, log });
         }
       },
     ];

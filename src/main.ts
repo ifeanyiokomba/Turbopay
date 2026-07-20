@@ -27,6 +27,7 @@ import { OTPService } from './services/otp-service';
 import { ComplianceService } from './services/compliance-service';
 import { MobileMoneyOrchestrator } from './services/mobile-money-orchestrator';
 import { FundingWorkflowService } from './services/funding-workflow';
+import { GeoRoutedOrchestrator } from './services/geo-router';
 
 // =============================================================================
 // TYPES
@@ -76,6 +77,7 @@ export interface TurboPayInstance {
   countryAccounts: CountryAccountsService;
   mobileMoney: MobileMoneyOrchestrator;
   fundingWorkflow: FundingWorkflowService;
+  geoRouter: GeoRoutedOrchestrator;
 
   // Auth & Security Services
   adminAuth: AdminAuthService;
@@ -151,6 +153,9 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   // ===========================================================================
 
   const router = new ProviderRouter();
+  const geoRouter = new GeoRoutedOrchestrator();
+
+  console.log('[TurboPay] Geo-Routed Orchestrator initialized');
 
   // ===========================================================================
   // 5. FEATURE SERVICES
@@ -242,7 +247,8 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     otp,
     compliance,
     mobileMoney,
-    fundingWorkflow
+    fundingWorkflow,
+    geoRouter
   });
 
   console.log('[TurboPay] API routes initialized');
@@ -265,6 +271,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('paystack', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Paystack registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Paystack registration failed:', (error as Error).message);
@@ -282,6 +289,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('flutterwave', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Flutterwave v4 registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Flutterwave v4 registration failed:', (error as Error).message);
@@ -315,6 +323,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('monnify', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Monnify registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Monnify registration failed:', (error as Error).message);
@@ -332,6 +341,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('onafriq', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Onafriq registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Onafriq registration failed:', (error as Error).message);
@@ -349,6 +359,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('remita', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Remita registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Remita registration failed:', (error as Error).message);
@@ -366,6 +377,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('quickteller', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Quickteller registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Quickteller registration failed:', (error as Error).message);
@@ -387,6 +399,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('smartcash', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Smart Cash registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Smart Cash registration failed:', (error as Error).message);
@@ -404,6 +417,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('airtel_money', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Airtel Money registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Airtel Money registration failed:', (error as Error).message);
@@ -421,6 +435,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('mtn_momo', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ MTN MoMo registered');
       } catch (error) {
         console.error('[TurboPay] ✗ MTN MoMo registration failed:', (error as Error).message);
@@ -438,6 +453,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('mpesa', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ M-Pesa registered');
       } catch (error) {
         console.error('[TurboPay] ✗ M-Pesa registration failed:', (error as Error).message);
@@ -455,6 +471,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
         registry.register(adapter);
         selectionEngine.registerProvider('paga', adapter.getCapabilities());
         await router.registerProvider(adapter);
+        geoRouter.registerProvider(adapter);
         console.log('[TurboPay] ✓ Paga registered');
       } catch (error) {
         console.error('[TurboPay] ✗ Paga registration failed:', (error as Error).message);
@@ -544,6 +561,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     countryAccounts,
     mobileMoney,
     fundingWorkflow,
+    geoRouter,
 
     // Auth & Security
     adminAuth,
