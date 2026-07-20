@@ -37,7 +37,7 @@ const COUNTRY_REGISTRY: Map<string, CountryConfig> = new Map([
     currencies: ['NGN'],
     primary_currency: 'NGN',
     default_provider: 'paystack',
-    fallback_providers: ['flutterwave', 'monnify', 'remita'],
+    fallback_providers: ['flutterwave', 'monnify', 'paga', 'smartcash', 'mtn_momo', 'remita'],
     compliance_level: 'enhanced',
     regulatory_requirements: [
       { type: 'kyc', description: 'BVN required for transfers > ₦50,000', mandatory: true, max_transaction_without: 50000 },
@@ -71,7 +71,7 @@ const COUNTRY_REGISTRY: Map<string, CountryConfig> = new Map([
     currencies: ['GHS'],
     primary_currency: 'GHS',
     default_provider: 'flutterwave',
-    fallback_providers: ['paystack', 'onafriq'],
+    fallback_providers: ['paystack', 'mtn_momo', 'airtel_money', 'onafriq'],
     compliance_level: 'enhanced',
     regulatory_requirements: [
       { type: 'kyc', description: 'Ghana Card required', mandatory: true },
@@ -101,7 +101,7 @@ const COUNTRY_REGISTRY: Map<string, CountryConfig> = new Map([
     currencies: ['KES'],
     primary_currency: 'KES',
     default_provider: 'flutterwave',
-    fallback_providers: ['mpesa', 'paystack'],
+    fallback_providers: ['mpesa', 'airtel_money', 'paystack'],
     compliance_level: 'enhanced',
     regulatory_requirements: [
       { type: 'kyc', description: 'National ID or Passport required', mandatory: true },
@@ -220,7 +220,7 @@ const COUNTRY_REGISTRY: Map<string, CountryConfig> = new Map([
     currencies: ['UGX'],
     primary_currency: 'UGX',
     default_provider: 'flutterwave',
-    fallback_providers: ['mtn_momo', 'onafriq'],
+    fallback_providers: ['mtn_momo', 'airtel_money', 'onafriq'],
     compliance_level: 'basic',
     regulatory_requirements: [
       { type: 'kyc', description: 'National ID required', mandatory: true },
