@@ -51,9 +51,10 @@ class RecoveryService {
 
     await audit({ userId: user.id, action: "RECOVERY_INITIATED", category: "AUTH", severity: "WARN", metadata: { recoveryType: input.recoveryType, attemptId: attempt.id, channel } });
 
-    // In dev: return OTP. In prod: send via notification provider.
+    // In dev: log OTP server-side. In prod: send via notification provider.
+    // SECURITY: Never return OTPs in the response body — even in dev.
     if (process.env.NODE_ENV !== "production") {
-      return { attemptId: attempt.id, otpSent: true, devOtp: otp, channel, maskedTarget: channel === "EMAIL" ? maskEmail(target) : maskPhone(target) };
+      console.log(`[recovery] OTP for ${target}: ${otp} (dev only)`);
     }
     return { attemptId: attempt.id, otpSent: true, channel, maskedTarget: channel === "EMAIL" ? maskEmail(target) : maskPhone(target) };
   }

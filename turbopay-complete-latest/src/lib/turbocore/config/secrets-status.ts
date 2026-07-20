@@ -8,7 +8,7 @@ const ENV_SECRETS: Array<{ key: string; label: string; hint?: string }> = [
   { key: "TURBOPAY_PII_KEY", label: "PII Encryption Key", hint: "AES-256-GCM key for BVN/NIN encryption" },
   { key: "TURBOPAY_MONNIFY_WEBHOOK_SECRET", label: "Monnify Webhook Secret", hint: "HMAC secret for Monnify webhooks" },
   { key: "TURBOCORE_INTL_WEBHOOK_SECRET", label: "International Webhook Secret", hint: "HMAC secret for cross-border webhooks" },
-  { key: "REDIS_URL", label: "Redis URL", hint: "For distributed rate limiting (optional)" },
+  { key: "REDIS_URL", label: "Redis URL", hint: "Required in production for distributed rate limiting" },
   { key: "TERMII_API_KEY", label: "Termii API Key", hint: "For SMS notifications" },
   { key: "RESEND_API_KEY", label: "Resend API Key", hint: "For email notifications" },
   { key: "MONNIFY_API_KEY", label: "Monnify API Key", hint: "For wallet funding" },

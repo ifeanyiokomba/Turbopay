@@ -20,7 +20,8 @@ export async function POST(req: Request) {
       data: { userId: user.id, channel: user.email ? "EMAIL" : "PHONE", target: (user.email ?? user.phone) as string, code: hashOtp(otp), purpose: "RECOVER_USERNAME", expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
     });
     if (process.env.NODE_ENV !== "production") {
-      return json({ data: { otpSent: true, devOtp: otp, devUsername: user.username, target: user.email ?? user.phone } });
+      // SECURITY: Never return OTPs or usernames in the response body — even in dev.
+      console.log(`[forgot-username] OTP for ${user.email ?? user.phone}: ${otp} (dev only)`);
     }
   }
   return json({ data: { otpSent: true } });

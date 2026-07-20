@@ -28,6 +28,12 @@ const envSchema = z.object({
     ? z.string().optional()
     : z.string().min(16, "CRON_SECRET must be set in non-development environments"),
 
+  // Redis — required in production for distributed rate limiting, sessions, and caching.
+  // Without Redis, rate limits are per-instance and can be bypassed in multi-instance deployments.
+  REDIS_URL: process.env.NODE_ENV === "production"
+    ? z.string().min(1, "REDIS_URL is required in production — without it, rate limits are bypassable")
+    : z.string().optional(),
+
   // Notification providers (optional until integrated).
   TERMII_API_KEY: z.string().optional(),
   TERMII_SENDER_ID: z.string().optional().default("Turbopay"),

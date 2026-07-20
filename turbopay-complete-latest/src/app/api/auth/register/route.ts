@@ -148,10 +148,8 @@ export async function POST(req: Request) {
   await audit({ userId: user.id, action: "USER_REGISTERED", category: "AUTH", ip, userAgent: ua });
 
   // Auto-send verification OTP via the chosen channel — the user must verify
-  // before they can log in. In dev mode, the OTP is returned in the response
-  // body for testing convenience (no email/SMS provider configured in dev).
+  // before they can log in.
   // If no email was provided, skip email verification (phone-only account).
-  let devOtpCode: string | undefined;
   try {
     const { generateOtp, hashOtp } = await import("@/lib/turbopay/crypto");
     const { notify } = await import("@/lib/turbocore/notifications");
@@ -187,10 +185,10 @@ export async function POST(req: Request) {
         console.error("[register] Notification send failed:", e);
       }
 
-      // In dev: return the OTP in the response for testing convenience.
+      // In dev: log the OTP server-side for testing convenience.
+      // SECURITY: Never return OTPs in the response body — even in dev.
       if (process.env.NODE_ENV !== "production") {
-        devOtpCode = code;
-        console.info(`[register] OTP for ${target}: ${code}`);
+        console.info(`[register] OTP for ${target}: ${code} (dev only)`);
       }
     }
   } catch (e) { /* best-effort — don't fail registration if OTP sending fails */ console.error("[register] OTP send error:", e); }
@@ -209,8 +207,6 @@ export async function POST(req: Request) {
       hasTransactionPin: false,
       authProvider: "password",
       createdAt: user.createdAt.toISOString(),
-      // Dev OTP: returned only in non-production for testing convenience.
-      ...(devOtpCode ? { devOtp: devOtpCode } : {}),
     },
   });
 }

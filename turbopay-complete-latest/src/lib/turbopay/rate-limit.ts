@@ -178,7 +178,11 @@ export async function rateLimit(
   // Use Redis if configured; fall back to in-memory.
   const redis = await getRedis();
   if (!redis && !startupWarned) {
-    logger.warn("rate_limit.no_redis", { message: "REDIS_URL not set — using in-memory fallback. NOT safe for multi-instance deployments." });
+    if (process.env.NODE_ENV === "production") {
+      logger.error("rate_limit.no_redis", { message: "REDIS_URL not set in production — rate limits are per-instance and bypassable. This is a security risk." });
+    } else {
+      logger.warn("rate_limit.no_redis", { message: "REDIS_URL not set — using in-memory fallback. NOT safe for multi-instance deployments." });
+    }
     startupWarned = true;
   }
 

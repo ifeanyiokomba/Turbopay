@@ -61,8 +61,6 @@ export async function POST(req: Request) {
     ? await db.user.findUnique({ where: { email: target.toLowerCase() } })
     : await db.user.findUnique({ where: { phone: target } });
 
-  let codeForDevLog: string | undefined;
-
   if (user) {
     // Invalidate old codes for same user + purpose.
     await db.otpCode.deleteMany({ where: { userId: user.id, purpose } });
@@ -142,12 +140,11 @@ export async function POST(req: Request) {
     // In dev: log the code server-side for testing convenience.
     // SECURITY: Never return OTPs in the response body — even in dev.
     if (process.env.NODE_ENV !== "production") {
-      codeForDevLog = code;
       console.log(`[verify:${channel}] OTP for ${target}: ${code} (dev only)`);
     }
   }
 
   // Always return success (enumeration-safe).
-  // In dev: include the OTP for testing convenience (no email/SMS provider).
-  return json({ data: { sent: true, channel, ...(codeForDevLog ? { devOtp: codeForDevLog } : {}) } });
+  // OTP is never returned in the response body — even in dev.
+  return json({ data: { sent: true, channel } });
 }
