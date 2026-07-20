@@ -41,6 +41,10 @@ export class TurboPayRoutes {
   private auditLog: AuditLogService;
   private adminAuth: AdminAuthService;
   private customerAuth: CustomerAuthService;
+  private otp: any;
+  private compliance: any;
+  private mobileMoney: any;
+  private fundingWorkflow: any;
 
   constructor(deps: {
     processor: TransactionProcessor;
@@ -55,6 +59,10 @@ export class TurboPayRoutes {
     auditLog: AuditLogService;
     adminAuth: AdminAuthService;
     customerAuth: CustomerAuthService;
+    otp?: any;
+    compliance?: any;
+    mobileMoney?: any;
+    fundingWorkflow?: any;
   }) {
     this.processor = deps.processor;
     this.international = deps.international;
@@ -68,6 +76,10 @@ export class TurboPayRoutes {
     this.auditLog = deps.auditLog;
     this.adminAuth = deps.adminAuth;
     this.customerAuth = deps.customerAuth;
+    this.otp = deps.otp;
+    this.compliance = deps.compliance;
+    this.mobileMoney = deps.mobileMoney;
+    this.fundingWorkflow = deps.fundingWorkflow;
   }
 
   // ===========================================================================

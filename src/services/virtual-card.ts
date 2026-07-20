@@ -112,7 +112,13 @@ export class VirtualCardService {
       schemes: ['verve'],
       types: ['debit', 'prepaid'],
       features: ['virtual', 'bulk_production', 'pin_management', 'block_unblock', 'balance_inquiry']
-    }
+    },
+    // Mobile Money Providers (no virtual card support)
+    smartcash: { supported: false, schemes: [], types: [], features: [] },
+    airtel_money: { supported: false, schemes: [], types: [], features: [] },
+    mtn_momo: { supported: false, schemes: [], types: [], features: [] },
+    mpesa: { supported: false, schemes: [], types: [], features: [] },
+    paga: { supported: false, schemes: [], types: [], features: [] }
   };
 
   constructor(

@@ -130,6 +130,67 @@ const DEFAULT_FEES: Record<ProviderName, ProviderFeeStructure> = {
     fx_spread: 0,
     minimum_fee: 50,
     maximum_fee: 3000
+  },
+  // Mobile Money Providers (provisional — confirm against provider docs)
+  smartcash: {
+    collection_fee_percent: 1.5,
+    collection_fee_flat: 0,
+    transfer_fee_percent: 1.0,
+    transfer_fee_flat: 10,
+    virtual_account_fee: 0,
+    bill_payment_fee_percent: 1.0,
+    bill_payment_fee_flat: 0,
+    fx_spread: 0,
+    minimum_fee: 10,
+    maximum_fee: 2000
+  },
+  airtel_money: {
+    collection_fee_percent: 2.0,
+    collection_fee_flat: 0,
+    transfer_fee_percent: 1.5,
+    transfer_fee_flat: 25,
+    virtual_account_fee: 0,
+    bill_payment_fee_percent: 1.5,
+    bill_payment_fee_flat: 0,
+    fx_spread: 0,
+    minimum_fee: 25,
+    maximum_fee: 3000
+  },
+  mtn_momo: {
+    collection_fee_percent: 1.5,
+    collection_fee_flat: 0,
+    transfer_fee_percent: 1.0,
+    transfer_fee_flat: 15,
+    virtual_account_fee: 0,
+    bill_payment_fee_percent: 1.0,
+    bill_payment_fee_flat: 0,
+    fx_spread: 0,
+    minimum_fee: 15,
+    maximum_fee: 2500
+  },
+  mpesa: {
+    collection_fee_percent: 1.0,
+    collection_fee_flat: 0,
+    transfer_fee_percent: 1.0,
+    transfer_fee_flat: 10,
+    virtual_account_fee: 0,
+    bill_payment_fee_percent: 1.0,
+    bill_payment_fee_flat: 0,
+    fx_spread: 0,
+    minimum_fee: 10,
+    maximum_fee: 2000
+  },
+  paga: {
+    collection_fee_percent: 1.5,
+    collection_fee_flat: 0,
+    transfer_fee_percent: 1.0,
+    transfer_fee_flat: 10,
+    virtual_account_fee: 0,
+    bill_payment_fee_percent: 1.0,
+    bill_payment_fee_flat: 0,
+    fx_spread: 0,
+    minimum_fee: 10,
+    maximum_fee: 2000
   }
 };
 

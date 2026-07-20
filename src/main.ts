@@ -23,6 +23,10 @@ import { AuditLogService } from './admin/dashboard/audit-log';
 import { MarkupConfigService } from './admin/dashboard/markup-config';
 import { TurboPayRoutes } from './api/routes';
 import { PersistenceManager } from './utils/persistence';
+import { OTPService } from './services/otp-service';
+import { ComplianceService } from './services/compliance-service';
+import { MobileMoneyOrchestrator } from './services/mobile-money-orchestrator';
+import { FundingWorkflowService } from './services/funding-workflow';
 
 // =============================================================================
 // TYPES
@@ -40,6 +44,17 @@ export interface TurboPayConfig {
     onafriq?: { client_id: string; client_secret: string; api_key?: string; webhook_secret?: string };
     remita?: { api_key: string; api_secret: string; merchant_id: string; webhook_secret?: string };
     quickteller?: { client_id: string; client_secret: string; merchant_code: string; terminal_id?: string; webhook_secret?: string };
+    // Mobile Money Providers
+    smartcash?: { client_id: string; client_secret: string; shortcode?: string; webhook_secret?: string };
+    airtel_money?: { client_id: string; client_secret: string; api_key?: string; webhook_secret?: string };
+    mtn_momo?: { api_key: string; api_secret: string; subscription_key: string; disbursement_subscription_key?: string; api_user?: string; callback_url?: string; target_environment?: string };
+    mpesa?: { consumer_key: string; consumer_secret: string; shortcode: string; passkey: string; callback_url?: string; initiator_name?: string; security_credential?: string };
+    paga?: { principal: string; credentials: string; hash_key: string; api_key?: string };
+  };
+  otp?: {
+    api_key: string;
+    sender_id: string;
+    templates?: Record<string, { sms?: string; email_subject?: string; email_body?: string }>;
   };
   jwt_secret?: string;
 }
@@ -59,10 +74,14 @@ export interface TurboPayInstance {
   virtualCard: VirtualCardService;
   multiCurrency: MultiCurrencyService;
   countryAccounts: CountryAccountsService;
+  mobileMoney: MobileMoneyOrchestrator;
+  fundingWorkflow: FundingWorkflowService;
 
-  // Auth Services
+  // Auth & Security Services
   adminAuth: AdminAuthService;
   customerAuth: CustomerAuthService;
+  otp: OTPService;
+  compliance: ComplianceService;
 
   // Dashboard Services
   providerManagement: ProviderManagementService;
@@ -153,6 +172,25 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   console.log('[TurboPay] Feature services initialized');
 
   // ===========================================================================
+  // 5b. NEW SERVICES (OTP, Compliance, Mobile Money, Funding)
+  // ===========================================================================
+
+  const otp = new OTPService({
+    api_key: config.otp?.api_key || process.env.OTP_API_KEY || '',
+    sender_id: config.otp?.sender_id || process.env.OTP_SENDER_ID || '',
+    templates: config.otp?.templates as any || {}
+  });
+  otp.registerPersistence(persistence);
+
+  const compliance = new ComplianceService();
+  compliance.registerPersistence(persistence);
+
+  const mobileMoney = new MobileMoneyOrchestrator(selectionEngine, registry, ledger, webhookHandler);
+  const fundingWorkflow = new FundingWorkflowService(selectionEngine, registry, ledger, mobileMoney);
+
+  console.log('[TurboPay] OTP, Compliance, Mobile Money, and Funding services initialized');
+
+  // ===========================================================================
   // 6. PROVIDER MANAGEMENT
   // ===========================================================================
 
@@ -200,7 +238,11 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     analytics,
     auditLog,
     adminAuth,
-    customerAuth
+    customerAuth,
+    otp,
+    compliance,
+    mobileMoney,
+    fundingWorkflow
   });
 
   console.log('[TurboPay] API routes initialized');
@@ -330,6 +372,95 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
       }
     }
 
+    // ==========================================================================
+    // Mobile Money Providers
+    // ==========================================================================
+
+    // Smart Cash (Nigeria)
+    if (config.providers.smartcash) {
+      try {
+        const { SmartCashAdapter } = await import('./adapters/smartcash.adapter');
+        const adapter = new SmartCashAdapter({
+          environment: config.environment,
+          ...config.providers.smartcash
+        });
+        registry.register(adapter);
+        selectionEngine.registerProvider('smartcash', adapter.getCapabilities());
+        await router.registerProvider(adapter);
+        console.log('[TurboPay] ✓ Smart Cash registered');
+      } catch (error) {
+        console.error('[TurboPay] ✗ Smart Cash registration failed:', (error as Error).message);
+      }
+    }
+
+    // Airtel Money (Multi-country, excludes Nigeria)
+    if (config.providers.airtel_money) {
+      try {
+        const { AirtelMoneyAdapter } = await import('./adapters/airtel-money.adapter');
+        const adapter = new AirtelMoneyAdapter({
+          environment: config.environment,
+          ...config.providers.airtel_money
+        });
+        registry.register(adapter);
+        selectionEngine.registerProvider('airtel_money', adapter.getCapabilities());
+        await router.registerProvider(adapter);
+        console.log('[TurboPay] ✓ Airtel Money registered');
+      } catch (error) {
+        console.error('[TurboPay] ✗ Airtel Money registration failed:', (error as Error).message);
+      }
+    }
+
+    // MTN MoMo (Multi-country, includes Nigeria)
+    if (config.providers.mtn_momo) {
+      try {
+        const { MTNMoMoAdapter } = await import('./adapters/mtn-momo.adapter');
+        const adapter = new MTNMoMoAdapter({
+          environment: config.environment,
+          ...config.providers.mtn_momo
+        });
+        registry.register(adapter);
+        selectionEngine.registerProvider('mtn_momo', adapter.getCapabilities());
+        await router.registerProvider(adapter);
+        console.log('[TurboPay] ✓ MTN MoMo registered');
+      } catch (error) {
+        console.error('[TurboPay] ✗ MTN MoMo registration failed:', (error as Error).message);
+      }
+    }
+
+    // M-Pesa (Kenya primarily)
+    if (config.providers.mpesa) {
+      try {
+        const { MPesaAdapter } = await import('./adapters/mpesa.adapter');
+        const adapter = new MPesaAdapter({
+          environment: config.environment,
+          ...config.providers.mpesa
+        });
+        registry.register(adapter);
+        selectionEngine.registerProvider('mpesa', adapter.getCapabilities());
+        await router.registerProvider(adapter);
+        console.log('[TurboPay] ✓ M-Pesa registered');
+      } catch (error) {
+        console.error('[TurboPay] ✗ M-Pesa registration failed:', (error as Error).message);
+      }
+    }
+
+    // Paga (Nigeria)
+    if (config.providers.paga) {
+      try {
+        const { PagaAdapter } = await import('./adapters/paga.adapter');
+        const adapter = new PagaAdapter({
+          environment: config.environment,
+          ...config.providers.paga
+        });
+        registry.register(adapter);
+        selectionEngine.registerProvider('paga', adapter.getCapabilities());
+        await router.registerProvider(adapter);
+        console.log('[TurboPay] ✓ Paga registered');
+      } catch (error) {
+        console.error('[TurboPay] ✗ Paga registration failed:', (error as Error).message);
+      }
+    }
+
     const registeredProviders = registry.getNames();
     console.log(`[TurboPay] ${registeredProviders.length} provider(s) registered: ${registeredProviders.join(', ')}`);
   }
@@ -411,10 +542,14 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     virtualCard,
     multiCurrency,
     countryAccounts,
+    mobileMoney,
+    fundingWorkflow,
 
-    // Auth
+    // Auth & Security
     adminAuth,
     customerAuth,
+    otp,
+    compliance,
 
     // Dashboard
     providerManagement,

@@ -5,7 +5,9 @@
 // PROVIDER TYPES
 // =============================================================================
 
-export type ProviderName = 'paystack' | 'flutterwave' | 'monnify' | 'onafriq' | 'remita' | 'quickteller';
+export type ProviderName =
+  | 'paystack' | 'flutterwave' | 'monnify' | 'onafriq' | 'remita' | 'quickteller'
+  | 'smartcash' | 'airtel_money' | 'mtn_momo' | 'mpesa' | 'paga';
 
 export type PaymentOperation =
   | 'card_collection'

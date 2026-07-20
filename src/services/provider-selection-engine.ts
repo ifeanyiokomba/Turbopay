@@ -97,6 +97,12 @@ export class ProviderSelectionEngine {
     { provider: 'onafriq', collection_fee_percent: 2.0, collection_fee_flat: 0, transfer_fee_flat: 50, refund_fee: 0, settlement_speed: 't1' },
     { provider: 'remita', collection_fee_percent: 1.5, collection_fee_flat: 100, transfer_fee_flat: 25, refund_fee: 0, settlement_speed: 't1' },
     { provider: 'quickteller', collection_fee_percent: 1.5, collection_fee_flat: 50, transfer_fee_flat: 25, refund_fee: 0, settlement_speed: 't1' },
+    // Mobile Money Providers (provisional)
+    { provider: 'smartcash', collection_fee_percent: 1.5, collection_fee_flat: 0, transfer_fee_flat: 10, refund_fee: 0, settlement_speed: 'instant' },
+    { provider: 'airtel_money', collection_fee_percent: 2.0, collection_fee_flat: 0, transfer_fee_flat: 25, refund_fee: 0, settlement_speed: 'instant' },
+    { provider: 'mtn_momo', collection_fee_percent: 1.5, collection_fee_flat: 0, transfer_fee_flat: 15, refund_fee: 0, settlement_speed: 'instant' },
+    { provider: 'mpesa', collection_fee_percent: 1.0, collection_fee_flat: 0, transfer_fee_flat: 10, refund_fee: 0, settlement_speed: 'instant' },
+    { provider: 'paga', collection_fee_percent: 1.5, collection_fee_flat: 0, transfer_fee_flat: 10, refund_fee: 0, settlement_speed: 'instant' },
   ];
 
   constructor(weights?: Partial<ScoringWeights>) {

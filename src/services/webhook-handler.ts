@@ -255,7 +255,13 @@ export class WebhookHandler {
       monnify: 'x-monnify-signature',
       onafriq: 'x-onafriq-signature',
       remita: 'x-remita-signature',
-      quickteller: 'x-quickteller-signature'
+      quickteller: 'x-quickteller-signature',
+      // Mobile Money Providers
+      smartcash: 'x-smartcash-signature',
+      airtel_money: 'x-airtel-signature',
+      mtn_momo: 'x-mtn-signature',
+      mpesa: 'x-mpesa-signature',
+      paga: 'x-paga-signature'
     };
 
     const headerName = headerMap[provider];
