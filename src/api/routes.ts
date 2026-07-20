@@ -21,6 +21,7 @@ import { AISupportService } from '../services/ai-support';
 import { PagaReverseAPIService } from '../services/paga-reverse-api';
 import { NotificationEngine } from '../services/notification-engine';
 import { EmailService } from '../services/email-service';
+import { UnifiedBillsService } from '../services/unified-bills';
 
 // =============================================================================
 // ROUTE DEFINITIONS
@@ -58,6 +59,7 @@ export class TurboPayRoutes {
   private pagaReverseAPI: PagaReverseAPIService | undefined;
   private notificationEngine: NotificationEngine | undefined;
   private emailService: EmailService | undefined;
+  private unifiedBills: UnifiedBillsService | undefined;
 
   constructor(deps: {
     processor: TransactionProcessor;
@@ -81,6 +83,7 @@ export class TurboPayRoutes {
     pagaReverseAPI?: PagaReverseAPIService;
     notificationEngine?: NotificationEngine;
     emailService?: EmailService;
+    unifiedBills?: UnifiedBillsService;
   }) {
     this.processor = deps.processor;
     this.international = deps.international;
@@ -103,6 +106,7 @@ export class TurboPayRoutes {
     this.pagaReverseAPI = deps.pagaReverseAPI;
     this.notificationEngine = deps.notificationEngine;
     this.emailService = deps.emailService;
+    this.unifiedBills = deps.unifiedBills;
   }
 
   // ===========================================================================
@@ -143,6 +147,8 @@ export class TurboPayRoutes {
       ...this.notificationRoutes(),
       // EMAIL
       ...this.emailRoutes(),
+      // UNIFIED BILLS
+      ...this.unifiedBillsRoutes(),
     ];
   }
 
@@ -1879,6 +1885,83 @@ export class TurboPayRoutes {
           if (!await this.requireAdmin(req, res)) return;
           const log = email.getSendLog(parseInt(req.query.limit as string || '100'));
           res.json({ success: true, log });
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // UNIFIED BILLS ROUTES
+  // ===========================================================================
+
+  private unifiedBillsRoutes(): Route[] {
+    if (!this.unifiedBills) return [];
+    const bills = this.unifiedBills;
+
+    return [
+      {
+        method: 'GET',
+        path: '/api/v1/bills/categories',
+        description: 'List all bill categories with biller counts',
+        handler: async (req, res) => {
+          const categories = bills.getCategories();
+          res.json({ success: true, categories });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/bills/categories/:category',
+        description: 'Get billers for a category',
+        handler: async (req, res) => {
+          const billers = bills.getBillersByCategory(req.params.category as any);
+          res.json({ success: true, billers });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/bills/billers',
+        description: 'List all billers across all categories',
+        handler: async (req, res) => {
+          const billers = req.query.category
+            ? bills.getBillersByCategory(req.query.category as any)
+            : bills.getAllBillers();
+          res.json({ success: true, billers });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/bills/billers/:id',
+        description: 'Get specific biller details',
+        handler: async (req, res) => {
+          const biller = bills.getBiller(req.params.id);
+          if (!biller) { res.status(404).json({ success: false, error: 'Biller not found' }); return; }
+          res.json({ success: true, biller });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/bills/pay',
+        description: 'Pay a bill (unified — auto-selects best provider)',
+        auth: 'customer',
+        requiredBodyFields: ['biller_id', 'amount', 'customer_reference', 'category'],
+        handler: async (req, res) => {
+          try {
+            const result = await bills.payBill({
+              biller_id: req.body.biller_id,
+              item_id: req.body.item_id,
+              amount: req.body.amount,
+              customer_reference: req.body.customer_reference,
+              customer_name: req.body.customer_name,
+              customer_email: req.body.customer_email,
+              customer_phone: req.body.customer_phone,
+              category: req.body.category,
+              country: req.body.country || req.user?.country,
+              currency: req.body.currency || req.user?.currency
+            }, req.user?.id);
+            res.json(result);
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
         }
       },
     ];

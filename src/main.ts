@@ -32,6 +32,7 @@ import { AISupportService } from './services/ai-support';
 import { PagaReverseAPIService } from './services/paga-reverse-api';
 import { NotificationEngine } from './services/notification-engine';
 import { EmailService } from './services/email-service';
+import { UnifiedBillsService } from './services/unified-bills';
 
 // =============================================================================
 // TYPES
@@ -86,6 +87,7 @@ export interface TurboPayInstance {
   pagaReverseAPI: PagaReverseAPIService;
   notificationEngine: NotificationEngine;
   emailService: EmailService;
+  unifiedBills: UnifiedBillsService;
 
   // Auth & Security Services
   adminAuth: AdminAuthService;
@@ -224,7 +226,9 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   });
   emailService.registerPersistence(persistence);
 
-  console.log('[TurboPay] AI Support, Paga Reverse-API, Notifications, and Email services initialized');
+  const unifiedBills = new UnifiedBillsService(selectionEngine, registry, ledger);
+
+  console.log('[TurboPay] AI Support, Paga Reverse-API, Notifications, Email, and Unified Bills services initialized');
 
   // ===========================================================================
   // 6. PROVIDER MANAGEMENT
@@ -283,7 +287,8 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     aiSupport,
     pagaReverseAPI,
     notificationEngine,
-    emailService
+    emailService,
+    unifiedBills
   });
 
   console.log('[TurboPay] API routes initialized');
@@ -601,6 +606,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     pagaReverseAPI,
     notificationEngine,
     emailService,
+    unifiedBills,
 
     // Auth & Security
     adminAuth,
