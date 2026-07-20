@@ -8,6 +8,7 @@ import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { isPasswordBreached } from "@/lib/turbopay/breach-check";
 import { referrals } from "@/lib/turbocore/referrals";
 import { normalizePhone } from "@/lib/turbocore/config/country-currency";
+import crypto from "crypto";
 import { z } from "zod";
 import { cookies } from "next/headers";
 
@@ -159,14 +160,26 @@ export async function POST(req: Request) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const target = effectiveChannel === "SMS" ? phone : email;
     if (target) {
+      // Generate a single-use verification token for the email link.
+      // The token is a random string — the OTP is never embedded in the URL.
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+
       await db.otpCode.create({
-        data: { userId: user.id, channel: effectiveChannel, target, code: hashOtp(code), purpose, expiresAt },
+        data: {
+          userId: user.id,
+          channel: effectiveChannel,
+          target,
+          code: hashOtp(code),
+          purpose,
+          expiresAt,
+          verificationToken,
+        },
       });
 
-      // Build verification link for email channel.
+      // Build verification link for email channel — uses token, not OTP.
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
       const verifyUrl = effectiveChannel === "EMAIL"
-        ? `${baseUrl}/api/auth/verify-email/confirm?otp=${code}&target=${encodeURIComponent(target)}`
+        ? `${baseUrl}/api/auth/verify-email/confirm?token=${verificationToken}&target=${encodeURIComponent(target)}`
         : undefined;
 
       // Send the verification email/SMS via the notification provider.

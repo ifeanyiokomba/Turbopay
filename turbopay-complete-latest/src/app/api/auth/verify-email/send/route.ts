@@ -3,6 +3,7 @@ import { errorJson, json } from "@/lib/turbopay/api";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { generateOtp, hashOtp } from "@/lib/turbopay/crypto";
 import { notify } from "@/lib/turbocore/notifications";
+import crypto from "crypto";
 import { z } from "zod";
 
 const schema = z.object({ email: z.string().email() });
@@ -23,11 +24,25 @@ export async function POST(req: Request) {
     await db.otpCode.deleteMany({ where: { userId: user.id, purpose: "EMAIL_VERIFY" } });
     const code = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    await db.otpCode.create({ data: { userId: user.id, channel: "EMAIL", target: email, code: hashOtp(code), purpose: "EMAIL_VERIFY", expiresAt } });
 
-    // Send verification email via the notification provider.
+    // Generate a single-use verification token for the email link.
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    await db.otpCode.create({
+      data: {
+        userId: user.id,
+        channel: "EMAIL",
+        target: email,
+        code: hashOtp(code),
+        purpose: "EMAIL_VERIFY",
+        expiresAt,
+        verificationToken,
+      },
+    });
+
+    // Send verification email — URL uses token, not OTP.
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const verifyUrl = `${baseUrl}/api/auth/verify-email/confirm?otp=${code}&target=${encodeURIComponent(email)}`;
+    const verifyUrl = `${baseUrl}/api/auth/verify-email/confirm?token=${verificationToken}&target=${encodeURIComponent(email)}`;
 
     await notify.send({
       to: email,

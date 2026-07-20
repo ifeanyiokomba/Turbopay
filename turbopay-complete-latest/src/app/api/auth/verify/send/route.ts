@@ -5,6 +5,7 @@ import { generateOtp, hashOtp } from "@/lib/turbopay/crypto";
 import { notify } from "@/lib/turbocore/notifications";
 import { sendSmsOtp } from "@/lib/turbocore/otpdev";
 import { decryptPii } from "@/lib/turbopay/crypto";
+import crypto from "crypto";
 import { z } from "zod";
 
 /**
@@ -102,6 +103,11 @@ export async function POST(req: Request) {
     // ─── Standard flow (generate OTP, send via notification provider) ───
     const code = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Generate a single-use verification token for the email link.
+    // The token is a random string — the OTP is never embedded in the URL.
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
     await db.otpCode.create({
       data: {
         userId: user.id,
@@ -110,13 +116,14 @@ export async function POST(req: Request) {
         code: hashOtp(code),
         purpose,
         expiresAt,
+        verificationToken,
       },
     });
 
-    // Build the verify URL for email verification links.
+    // Build the verify URL for email verification links — uses token, not OTP.
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const verifyUrl = purpose === "EMAIL_VERIFY"
-      ? `${baseUrl}/api/auth/verify-email/confirm?otp=${code}&target=${encodeURIComponent(target)}`
+      ? `${baseUrl}/api/auth/verify-email/confirm?token=${verificationToken}&target=${encodeURIComponent(target)}`
       : undefined;
 
     // Send via the notification provider.

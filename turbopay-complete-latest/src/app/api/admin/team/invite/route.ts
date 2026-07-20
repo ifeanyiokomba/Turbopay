@@ -5,6 +5,7 @@ import { errorJson, json } from "@/lib/turbopay/api";
 import { audit } from "@/lib/turbopay/audit";
 import { hashPassword } from "@/lib/turbopay/crypto";
 import { maskPhone, maskEmail } from "@/lib/turbopay/mask";
+import { notify } from "@/lib/turbocore/notifications";
 import { z } from "zod";
 import * as crypto from "node:crypto";
 
@@ -87,13 +88,24 @@ export async function POST(req: Request) {
     },
   });
 
-  // SECURITY: The temporary password is NOT returned in the response body.
-  // Previously it was included in the JSON response, which meant any proxy,
-  // WAF, or monitoring tool capturing admin API responses would log the
-  // cleartext password. Instead, log it server-side and deliver it to the
-  // invitee out-of-band (email/SMS).
-  // TODO: Send tempPassword via email to the invitee using the notification system.
-  console.log(`[admin:invite] Temporary password for ${email}: ${tempPassword} — deliver out-of-band`);
+  // SECURITY: Send temp password via email — never log it to stdout or include in response.
+  // The invitee must reset this password on first login.
+  try {
+    await notify.send({
+      to: email,
+      channel: "EMAIL",
+      template: "admin.invite",
+      variables: {
+        userName: fullName.split(" ")[0],
+        tempPassword,
+        invitedByName: actor.fullName,
+      },
+    });
+  } catch (e) {
+    // If email fails, log a warning but don't expose the password.
+    // The admin can manually share it out-of-band.
+    console.error(`[admin:invite] Failed to send invite email to ${maskEmail(email)}`, (e as Error).message);
+  }
 
   return json(
     {

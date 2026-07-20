@@ -495,7 +495,13 @@ model OtpCode {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
+  // Single-use verification token for email links (replaces OTP in URL).
+  // When a user clicks a verification link, the token is used to look up the OTP record.
+  // The token is a random string, never the OTP itself, so it's safe to include in URLs.
+  verificationToken String? @unique
+
   @@index([target, purpose])
+  @@index([verificationToken])
 }
 
 // ============================================================

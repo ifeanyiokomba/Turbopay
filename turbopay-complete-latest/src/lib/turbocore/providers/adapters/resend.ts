@@ -44,6 +44,8 @@ const SUBJECTS: Record<string, string> = {
   "auth.forgot-password": "Reset Your TurboPay Password",
   // Forgot PIN
   "auth.forgot-pin": "Reset Your TurboPay Transaction PIN",
+  // Admin team invite
+  "admin.invite": "You've Been Invited to TurboPay Admin",
   // Login Verification
   "auth.login-otp": "Your TurboPay Login Verification Code",
   // Transaction Confirmation
@@ -177,6 +179,26 @@ const HTML_TEMPLATES: Record<string, string> = {
       </div>
       <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If this was you, no action is required.</p>
       <p style="color:#aaa;font-size:11px;text-align:center">If you do not recognize this activity, please secure your account immediately.</p>
+      <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
+    </div>`,
+
+  // ─── Admin Team Invite ──────────────────────────────────────
+  "admin.invite": `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{userName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px"><strong>{{invitedByName}}</strong> has invited you to join the TurboPay admin team.</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Your temporary password is:</p>
+        <div style="background:#1a1a2e;border-radius:8px;padding:12px 24px;display:inline-block;margin:8px 0">
+          <code style="color:#fff;font-size:18px;letter-spacing:2px">{{tempPassword}}</code>
+        </div>
+        <p style="color:#888;font-size:12px;margin:16px 0 0">You will be required to change this password on your first login.</p>
+        <p style="color:#888;font-size:12px;margin:8px 0 0">For security, do not share this password with anyone.</p>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">If you did not expect this invitation, please contact your administrator.</p>
       <p style="color:#aaa;font-size:11px;text-align:center">TurboPay Technologies Ltd</p>
     </div>`,
 
