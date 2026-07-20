@@ -72,7 +72,7 @@ const HTML_TEMPLATES: Record<string, string> = {
         <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
       </div>
       <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}} {{lastName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{userName}},</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">Welcome to TurboPay! We are excited to have you onboard.</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">To complete your account registration, please enter the verification code below:</p>
         <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
@@ -89,7 +89,7 @@ const HTML_TEMPLATES: Record<string, string> = {
         <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
       </div>
       <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-        <p style="color:#555;font-size:14px;margin:0 0 16px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 16px">Hello {{userName}},</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">Your verification code is:</p>
         <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
         <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
@@ -104,7 +104,7 @@ const HTML_TEMPLATES: Record<string, string> = {
         <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
       </div>
       <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}} {{lastName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{userName}},</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">We received a request to reset your TurboPay account password.</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">To continue with the password reset process, enter the verification code below:</p>
         <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
@@ -121,7 +121,7 @@ const HTML_TEMPLATES: Record<string, string> = {
         <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
       </div>
       <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}} {{lastName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{userName}},</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay PIN reset code is:</p>
         <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
         <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
@@ -206,7 +206,7 @@ const HTML_TEMPLATES: Record<string, string> = {
   "transaction.failed": `
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
       <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Transaction Failed</h2>
-      <p style="color:#555;font-size:14px">Hi {{firstName}},</p>
+      <p style="color:#555;font-size:14px">Hi {{userName}},</p>
       <p style="color:#555;font-size:14px">Your payment of <strong>{{amount}}</strong> failed.</p>
       <p style="color:#888;font-size:12px;margin:16px 0 0">Reference: {{ref}}</p>
       <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>
@@ -215,7 +215,7 @@ const HTML_TEMPLATES: Record<string, string> = {
   "transaction.reversed": `
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
       <h2 style="color:#1a1a2e;font-size:20px;margin:0 0 16px">Reversal Notification</h2>
-      <p style="color:#555;font-size:14px">Hi {{firstName}},</p>
+      <p style="color:#555;font-size:14px">Hi {{userName}},</p>
       <p style="color:#555;font-size:14px">{{amount}} has been reversed to your wallet.</p>
       <p style="color:#888;font-size:12px;margin:16px 0 0">Reference: {{ref}}<br/>New balance: {{balance}}</p>
       <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px">TurboPay Technologies Ltd</p>

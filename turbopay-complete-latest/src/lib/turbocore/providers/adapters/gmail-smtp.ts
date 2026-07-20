@@ -55,7 +55,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName} ${v.lastName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.userName ?? v.firstName ?? 'there'},</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">Welcome to TurboPay! We are excited to have you onboard.</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">To complete your account registration, please enter the verification code below:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
@@ -76,7 +76,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.userName ?? v.firstName ?? 'there'},</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">Your verification code is:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
           <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
@@ -95,7 +95,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName} ${v.lastName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.userName ?? v.firstName ?? 'there'},</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">We received a request to reset your TurboPay account password.</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">To continue with the password reset process, enter the verification code below:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
@@ -116,7 +116,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName} ${v.lastName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.userName ?? v.firstName ?? 'there'},</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay PIN reset code is:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
           <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
@@ -136,7 +136,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.userName ?? v.firstName ?? 'there'},</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay login verification code is:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
           <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
@@ -156,7 +156,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.userName ?? v.firstName ?? 'there'},</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay transaction confirmation code is:</p>
           <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">${v.otp}</h2>
           <p style="color:#888;font-size:12px;margin:16px 0 0">Enter this code to authorize your transaction.</p>
@@ -176,7 +176,7 @@ const TEMPLATES: Record<string, EmailTemplate> = {
           <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.firstName},</p>
+          <p style="color:#555;font-size:14px;margin:0 0 8px">Hello ${v.userName ?? v.firstName ?? 'there'},</p>
           <p style="color:#555;font-size:14px;margin:0 0 16px">A new device has been used to access your TurboPay account.</p>
           <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Device:</strong> ${v.deviceInfo}</p>
           <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Location:</strong> ${v.ip}</p>
