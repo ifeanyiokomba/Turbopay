@@ -17,12 +17,13 @@ import type {
   MobileMoneyConfig,
 } from "../interfaces/mobile-money";
 import type { ProviderResult } from "../interfaces";
+import type { Currency } from "../../types";
 
 export class PagaAdapter implements IMobileMoneyProvider {
   readonly name = "paga" as const;
   readonly displayName = "Paga";
   readonly supportedCountries = ["NG"];
-  readonly supportedCurrencies = ["NGN"];
+  readonly supportedCurrencies: Currency[] = ["NGN"];
 
   private config: MobileMoneyConfig | null = null;
   private apiKey: string | null = null;

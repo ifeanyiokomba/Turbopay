@@ -17,12 +17,13 @@ import type {
   MobileMoneyConfig,
 } from "../interfaces/mobile-money";
 import type { ProviderResult } from "../interfaces";
+import type { Currency } from "../../types";
 
 export class AirtelMoneyAdapter implements IMobileMoneyProvider {
   readonly name = "airtel-money" as const;
   readonly displayName = "Airtel Money";
   readonly supportedCountries = ["NG", "GH", "KE", "UG", "TZ", "ZA", "CM", "CI", "RW", "ZM", "MW", "MG", "SS", "ZW"];
-  readonly supportedCurrencies = ["NGN", "GHS", "KES", "UGX", "TZS", "ZAR", "XAF", "XOF", "RWF", "ZMW", "MWK", "MGA", "SSP", "ZWL"];
+  readonly supportedCurrencies: Currency[] = ["NGN", "GHS", "KES", "UGX", "TZS", "ZAR", "XAF", "XOF", "RWF", "ZMW", "MWK", "MGA", "SSP", "ZWL"];
 
   private config: MobileMoneyConfig | null = null;
   private accessToken: string | null = null;

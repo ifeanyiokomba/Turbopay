@@ -17,12 +17,13 @@ import type {
   MobileMoneyConfig,
 } from "../interfaces/mobile-money";
 import type { ProviderResult } from "../interfaces";
+import type { Currency } from "../../types";
 
 export class MPesaAdapter implements IMobileMoneyProvider {
   readonly name = "m-pesa" as const;
   readonly displayName = "M-Pesa";
   readonly supportedCountries = ["KE", "TZ", "CD", "MZ", "LS", "SZ", "EG"];
-  readonly supportedCurrencies = ["KES", "TZS", "CDF", "MZN", "LSL", "SZL", "EGP"];
+  readonly supportedCurrencies: Currency[] = ["KES", "TZS", "CDF", "MZN", "LSL", "SZL", "EGP"];
 
   private config: MobileMoneyConfig | null = null;
   private accessToken: string | null = null;

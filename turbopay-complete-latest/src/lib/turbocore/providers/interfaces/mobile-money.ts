@@ -7,7 +7,7 @@
  */
 
 import type { Currency } from "@/lib/turbocore/types";
-import type { ProviderResult } from "./index";
+import type { ProviderResult } from "../interfaces";
 
 // ─── Mobile Money Provider Types ─────────────────────────────
 

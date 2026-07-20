@@ -17,12 +17,13 @@ import type {
   MobileMoneyConfig,
 } from "../interfaces/mobile-money";
 import type { ProviderResult } from "../interfaces";
+import type { Currency } from "../../types";
 
 export class MtnMomoAdapter implements IMobileMoneyProvider {
   readonly name = "mtn-momo" as const;
   readonly displayName = "MTN Mobile Money";
   readonly supportedCountries = ["NG", "GH", "UG", "TZ", "ZA", "CM", "CI", "RW", "ZM", "MW"];
-  readonly supportedCurrencies = ["NGN", "GHS", "UGX", "TZS", "ZAR", "XAF", "XOF", "RWF", "ZMW", "MWK"];
+  readonly supportedCurrencies: Currency[] = ["NGN", "GHS", "UGX", "TZS", "ZAR", "XAF", "XOF", "RWF", "ZMW", "MWK"];
 
   private config: MobileMoneyConfig | null = null;
   private accessToken: string | null = null;

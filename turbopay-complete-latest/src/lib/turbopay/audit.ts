@@ -7,7 +7,7 @@ import { logger } from "@/lib/turbocore/logger";
 export interface AuditInput {
   userId?: string | null;
   action: string;
-  category: "AUTH" | "WALLET" | "TRANSFER" | "BILL" | "KYC" | "AML" | "ADMIN" | "WEBHOOK" | "FX";
+  category: "AUTH" | "WALLET" | "TRANSFER" | "BILL" | "KYC" | "AML" | "ADMIN" | "WEBHOOK" | "FX" | "MOBILE_MONEY";
   severity?: "INFO" | "WARN" | "ERROR" | "CRITICAL";
   ip?: string | null;
   userAgent?: string | null;

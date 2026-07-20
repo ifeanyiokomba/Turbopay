@@ -50,7 +50,7 @@ export interface MobileMoneyTransaction {
   currency: string;
   country: string;
   reference: string;
-  status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "REVERSED";
+  status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "REVERSED" | "REJECTED";
   providerRef?: string;
   errorMessage?: string;
   metadata?: Record<string, any>;
@@ -204,7 +204,7 @@ export class MobileMoneyService {
 
         return {
           success: true,
-          transaction: await this.getTransaction(transaction.id),
+          transaction: await this.getTransaction(transaction.id) ?? undefined,
         };
       } else {
         // Update transaction as failed
@@ -288,7 +288,7 @@ export class MobileMoneyService {
 
         return {
           success: true,
-          transaction: await this.getTransaction(transaction.id),
+          transaction: await this.getTransaction(transaction.id) ?? undefined,
         };
       } else {
         // Update transaction as failed
@@ -392,7 +392,7 @@ export class MobileMoneyService {
     currency: string;
     country: string;
     reference: string;
-    status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "REVERSED";
+    status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "REVERSED" | "REJECTED";
   }): Promise<MobileMoneyTransaction> {
     const transaction = await db.mobileMoneyTransaction.create({
       data: {
