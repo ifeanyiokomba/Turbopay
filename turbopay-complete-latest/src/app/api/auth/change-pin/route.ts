@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/turbopay/auth";
 import { errorJson, json } from "@/lib/turbopay/api";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/turbopay/audit";
+import { hashPin, verifyPin } from "@/lib/turbopay/crypto";
+import { hashOtp, generateOtp } from "@/lib/turbopay/crypto";
 import crypto from "crypto";
 
 /**
@@ -25,42 +27,66 @@ export async function POST(req: Request) {
   if (!action) return errorJson("Missing action", 422);
 
   if (action === "request-otp") {
-    // Generate a 6-digit OTP
-    const devOtp = process.env.NODE_ENV !== "production" ? String(Math.floor(100000 + Math.random() * 900000)) : undefined;
-    const hashedOtp = crypto.createHash("sha256").update(devOtp ?? "production-otp").digest("hex");
+    // Generate a 6-digit OTP using CSPRNG
+    const code = generateOtp();
+    const hashedOtpCode = hashOtp(code);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Store the OTP attempt (expires in 10 minutes)
-    const id = crypto.randomBytes(16).toString("hex");
-    // In production, store in DB with TTL. For now, use a simple in-memory approach.
-    // The OTP verification below will work with the dev OTP.
+    // Store the OTP in the database
+    const otpRecord = await db.otpCode.create({
+      data: {
+        userId: user.id,
+        channel: "EMAIL",
+        target: user.email ?? "",
+        code: hashedOtpCode,
+        purpose: "CHANGE_PIN",
+        expiresAt,
+      },
+    });
 
     await audit({ action: "change_pin.otp_requested", category: "AUTH", userId: user.id });
 
     return json({
       data: {
-        attemptId: id,
-        devOtp, // Only in development
-        message: "OTP sent to your email/phone",
+        attemptId: otpRecord.id,
+        message: "OTP sent to your email",
       },
     });
   }
 
   if (action === "change-pin") {
-    if (!otp) return errorJson("Missing OTP", 422);
+    if (!otp || !attemptId) return errorJson("Missing OTP or attempt ID", 422);
     if (!newPin || newPin.length !== 4) return errorJson("PIN must be 4 digits", 422);
     if (!/^\d{4}$/.test(newPin)) return errorJson("PIN must contain only digits", 422);
 
-    // In production: verify OTP against stored hash
-    // For now, accept any 6-digit OTP in development
-    if (process.env.NODE_ENV === "production") {
-      // TODO: Verify OTP from DB
-      return errorJson("OTP verification not implemented in production", 501);
+    // Verify OTP against stored hash
+    const otpRecord = await db.otpCode.findFirst({
+      where: {
+        id: attemptId,
+        userId: user.id,
+        purpose: "CHANGE_PIN",
+        verified: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!otpRecord) {
+      return errorJson("Invalid or expired OTP", 400);
     }
 
-    // Hash the new PIN
-    const salt = crypto.randomBytes(16).toString("hex");
-    const pinHash = crypto.createHash("sha256").update(newPin + salt).digest("hex");
-    const storedHash = `scrypt$${salt}$${pinHash}`;
+    // Verify the OTP code
+    const { verifyOtp: verifyOtpFn } = await import("@/lib/turbopay/crypto");
+    const valid = verifyOtpFn(otp, otpRecord.code);
+    if (!valid) {
+      await db.otpCode.update({ where: { id: otpRecord.id }, data: { verified: true } });
+      return errorJson("Invalid OTP", 400);
+    }
+
+    // Mark OTP as used
+    await db.otpCode.update({ where: { id: otpRecord.id }, data: { verified: true } });
+
+    // Hash the new PIN using scrypt (consistent with the rest of the codebase)
+    const storedHash = await hashPin(newPin);
 
     // Update user's PIN
     await db.user.update({

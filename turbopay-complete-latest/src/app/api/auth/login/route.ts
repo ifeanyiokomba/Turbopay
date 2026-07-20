@@ -222,6 +222,6 @@ export async function POST(req: Request) {
     const detail = error?.message ?? String(error);
     const code = error?.code ?? "UNKNOWN";
     console.error("[User Login Error]", { message: detail, code, stack: error?.stack?.slice(0, 500) });
-    return errorJson(`Internal server error: ${detail}`, 500);
+    return errorJson("Internal server error", 500);
   }
 }
