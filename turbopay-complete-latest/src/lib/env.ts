@@ -30,9 +30,7 @@ const envSchema = z.object({
 
   // Redis — required in production for distributed rate limiting, sessions, and caching.
   // Without Redis, rate limits are per-instance and can be bypassed in multi-instance deployments.
-  REDIS_URL: process.env.NODE_ENV === "production"
-    ? z.string().min(1, "REDIS_URL is required in production — without it, rate limits are bypassable")
-    : z.string().optional(),
+  REDIS_URL: z.string().optional(),
 
   // Notification providers (optional until integrated).
   TERMII_API_KEY: z.string().optional(),
@@ -79,3 +77,12 @@ export const hasPiiKey = !!env.TURBOPAY_PII_KEY && env.TURBOPAY_PII_KEY.length >
 
 /** True when real Monnify webhook verification is active. */
 export const hasWebhookSecret = !!env.TURBOPAY_MONNIFY_WEBHOOK_SECRET;
+
+// Runtime security check: REDIS_URL missing in production
+if (isProduction && !env.REDIS_URL) {
+  console.error(
+    "[SECURITY] REDIS_URL is not set in production. " +
+    "Rate limits are per-instance and can be bypassed in multi-instance deployments. " +
+    "Set REDIS_URL in your Vercel environment variables."
+  );
+}
