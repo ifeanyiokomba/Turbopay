@@ -28,6 +28,8 @@ import { ComplianceService } from './services/compliance-service';
 import { MobileMoneyOrchestrator } from './services/mobile-money-orchestrator';
 import { FundingWorkflowService } from './services/funding-workflow';
 import { GeoRoutedOrchestrator } from './services/geo-router';
+import { AISupportService } from './services/ai-support';
+import { PagaReverseAPIService } from './services/paga-reverse-api';
 
 // =============================================================================
 // TYPES
@@ -78,6 +80,8 @@ export interface TurboPayInstance {
   mobileMoney: MobileMoneyOrchestrator;
   fundingWorkflow: FundingWorkflowService;
   geoRouter: GeoRoutedOrchestrator;
+  aiSupport: AISupportService;
+  pagaReverseAPI: PagaReverseAPIService;
 
   // Auth & Security Services
   adminAuth: AdminAuthService;
@@ -196,6 +200,17 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   console.log('[TurboPay] OTP, Compliance, Mobile Money, and Funding services initialized');
 
   // ===========================================================================
+  // 5c. AI SUPPORT & PAGA REVERSE-API
+  // ===========================================================================
+
+  const aiSupport = new AISupportService();
+  aiSupport.registerPersistence(persistence);
+
+  const pagaReverseAPI = new PagaReverseAPIService();
+
+  console.log('[TurboPay] AI Support and Paga Reverse-API initialized');
+
+  // ===========================================================================
   // 6. PROVIDER MANAGEMENT
   // ===========================================================================
 
@@ -248,7 +263,9 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     compliance,
     mobileMoney,
     fundingWorkflow,
-    geoRouter
+    geoRouter,
+    aiSupport,
+    pagaReverseAPI
   });
 
   console.log('[TurboPay] API routes initialized');
@@ -562,6 +579,8 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     mobileMoney,
     fundingWorkflow,
     geoRouter,
+    aiSupport,
+    pagaReverseAPI,
 
     // Auth & Security
     adminAuth,

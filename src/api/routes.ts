@@ -17,6 +17,8 @@ import { CustomerAuthService } from '../auth/customer-auth.service';
 import { GeoRoutedOrchestrator } from '../services/geo-router';
 import { GeoRoutingContext } from '../types';
 import { ComplianceService } from '../services/compliance-service';
+import { AISupportService } from '../services/ai-support';
+import { PagaReverseAPIService } from '../services/paga-reverse-api';
 
 // =============================================================================
 // ROUTE DEFINITIONS
@@ -50,6 +52,8 @@ export class TurboPayRoutes {
   private mobileMoney: any;
   private fundingWorkflow: any;
   private geoRouter: GeoRoutedOrchestrator | undefined;
+  private aiSupport: AISupportService | undefined;
+  private pagaReverseAPI: PagaReverseAPIService | undefined;
 
   constructor(deps: {
     processor: TransactionProcessor;
@@ -69,6 +73,8 @@ export class TurboPayRoutes {
     mobileMoney?: any;
     fundingWorkflow?: any;
     geoRouter?: GeoRoutedOrchestrator;
+    aiSupport?: AISupportService;
+    pagaReverseAPI?: PagaReverseAPIService;
   }) {
     this.processor = deps.processor;
     this.international = deps.international;
@@ -87,6 +93,8 @@ export class TurboPayRoutes {
     this.mobileMoney = deps.mobileMoney;
     this.fundingWorkflow = deps.fundingWorkflow;
     this.geoRouter = deps.geoRouter;
+    this.aiSupport = deps.aiSupport;
+    this.pagaReverseAPI = deps.pagaReverseAPI;
   }
 
   // ===========================================================================
@@ -119,6 +127,10 @@ export class TurboPayRoutes {
       ...this.geoRoutes(),
       // COMPLIANCE & SECURITY
       ...this.complianceRoutes(),
+      // AI SUPPORT
+      ...this.aiSupportRoutes(),
+      // PAGA REVERSE-API
+      ...this.pagaReverseAPIRoutes(),
     ];
   }
 
@@ -1262,6 +1274,384 @@ export class TurboPayRoutes {
             since: req.query.since ? new Date(req.query.since as string) : undefined
           });
           res.json({ success: true, log });
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // AI SUPPORT ROUTES
+  // ===========================================================================
+
+  private aiSupportRoutes(): Route[] {
+    if (!this.aiSupport) return [];
+    const ai = this.aiSupport;
+
+    return [
+      // User-facing conversation routes
+      {
+        method: 'POST',
+        path: '/api/v1/support/conversations',
+        description: 'Start or resume a support conversation',
+        auth: 'customer',
+        handler: async (req, res) => {
+          try {
+            const conv = ai.startConversation(
+              req.user?.id,
+              req.user?.name,
+              req.user?.email,
+              req.body.message
+            );
+            res.json({ success: true, conversation: conv });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/support/conversations/:id/messages',
+        description: 'Send a message in a conversation',
+        auth: 'customer',
+        requiredBodyFields: ['content'],
+        handler: async (req, res) => {
+          try {
+            const message = ai.sendMessage(
+              req.params.id,
+              req.user?.id,
+              req.body.content,
+              'user'
+            );
+            res.json({ success: true, message });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/support/conversations/:id',
+        description: 'Get conversation with messages',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const conv = ai.getConversation(req.params.id);
+          if (!conv) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+          res.json({ success: true, conversation: conv });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/support/conversations',
+        description: 'List user conversations',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const conversations = ai.getUserConversations(req.user?.id);
+          res.json({ success: true, conversations });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/support/conversations/:id/resolve',
+        description: 'Resolve a conversation with optional rating',
+        auth: 'customer',
+        handler: async (req, res) => {
+          try {
+            const conv = ai.resolveConversation(req.params.id, req.body.rating);
+            res.json({ success: true, conversation: conv });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/support/conversations/:id/helpful',
+        description: 'Mark a knowledge article as helpful or not',
+        auth: 'customer',
+        requiredBodyFields: ['article_id', 'helpful'],
+        handler: async (req, res) => {
+          ai.markArticleHelpful(req.body.article_id, req.body.helpful);
+          res.json({ success: true });
+        }
+      },
+
+      // Admin conversation management
+      {
+        method: 'GET',
+        path: '/api/v1/admin/support/conversations/active',
+        description: 'List all active conversations',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const conversations = ai.getActiveConversations();
+          res.json({ success: true, conversations });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/admin/support/conversations/waiting',
+        description: 'List conversations waiting for admin',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const conversations = ai.getWaitingConversations();
+          res.json({ success: true, conversations });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/admin/support/conversations/taken-over',
+        description: 'List conversations taken over by admins',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const conversations = ai.getTakenOverConversations(req.query.admin_id as string);
+          res.json({ success: true, conversations });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/support/conversations/:id/takeover',
+        description: 'Admin takes over a conversation',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          try {
+            const conv = ai.takeOverConversation(
+              req.params.id,
+              req.user?.id,
+              req.user?.name || req.user?.email || 'Admin'
+            );
+            res.json({ success: true, conversation: conv });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/support/conversations/:id/release',
+        description: 'Admin releases conversation back to AI',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          try {
+            const conv = ai.releaseConversation(req.params.id);
+            res.json({ success: true, conversation: conv });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/support/conversations/:id/messages',
+        description: 'Admin sends a message in a conversation',
+        auth: 'admin',
+        requiredBodyFields: ['content'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          try {
+            const message = ai.sendMessage(
+              req.params.id,
+              req.user?.id,
+              req.body.content,
+              'admin',
+              req.user?.name || req.user?.email
+            );
+            res.json({ success: true, message });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/support/conversations/:id/tags',
+        description: 'Add tags to a conversation',
+        auth: 'admin',
+        requiredBodyFields: ['tags'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          ai.tagConversation(req.params.id, req.body.tags);
+          res.json({ success: true });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/support/conversations/:id/close',
+        description: 'Close a conversation',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          ai.closeConversation(req.params.id);
+          res.json({ success: true });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/admin/support/analytics',
+        description: 'Get support analytics',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const analytics = ai.getAnalytics();
+          res.json({ success: true, analytics });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/admin/support/conversations/recent',
+        description: 'Get recent conversations',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const limit = parseInt(req.query.limit as string || '20');
+          const conversations = ai.getRecentConversations(limit);
+          res.json({ success: true, conversations });
+        }
+      },
+
+      // Knowledge base management
+      {
+        method: 'GET',
+        path: '/api/v1/admin/support/knowledge-base',
+        description: 'List all knowledge base articles',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const articles = ai.getAllArticles();
+          res.json({ success: true, articles });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/support/knowledge-base',
+        description: 'Create knowledge base article',
+        auth: 'admin',
+        requiredBodyFields: ['title', 'content', 'category'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const article = ai.createArticle(req.body, req.user?.id);
+          res.json({ success: true, article });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/admin/support/knowledge-base/:id',
+        description: 'Update knowledge base article',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const article = ai.updateArticle(req.params.id, req.body);
+          if (!article) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+          res.json({ success: true, article });
+        }
+      },
+      {
+        method: 'DELETE',
+        path: '/api/v1/admin/support/knowledge-base/:id',
+        description: 'Delete knowledge base article',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const deleted = ai.deleteArticle(req.params.id);
+          res.json({ success: deleted });
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // PAGA REVERSE-API ROUTES
+  // ===========================================================================
+
+  private pagaReverseAPIRoutes(): Route[] {
+    if (!this.pagaReverseAPI) return [];
+    const paga = this.pagaReverseAPI;
+
+    return [
+      {
+        method: 'GET',
+        path: '/api/v1/paga/health',
+        description: 'Paga integration health check',
+        handler: async (req, res) => {
+          const result = paga.healthCheck();
+          res.json(result);
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/paga/services',
+        description: 'Paga queries available integration services',
+        handler: async (req, res) => {
+          const result = await paga.getIntegrationServices();
+          res.json(result);
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/paga/callback/payment',
+        description: 'Paga sends payment notification (collection)',
+        handler: async (req, res) => {
+          const result = await paga.processPayment(req.body);
+          res.json(result);
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/paga/callback/disbursement',
+        description: 'Paga sends disbursement status notification',
+        handler: async (req, res) => {
+          const result = await paga.processDisbursement(req.body);
+          res.json(result);
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/paga/callback/airtime',
+        description: 'Paga sends airtime purchase notification',
+        handler: async (req, res) => {
+          const result = await paga.processPayment(req.body);
+          res.json(result);
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/paga/callback/data',
+        description: 'Paga sends data purchase notification',
+        handler: async (req, res) => {
+          const result = await paga.processPayment(req.body);
+          res.json(result);
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/paga/callback/bills',
+        description: 'Paga sends bill payment notification',
+        handler: async (req, res) => {
+          const result = await paga.processPayment(req.body);
+          res.json(result);
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/paga/transaction/status',
+        description: 'Query Paga transaction status',
+        handler: async (req, res) => {
+          const result = paga.getTransactionStatus(req.body);
+          res.json(result);
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/paga/transactions',
+        description: 'List all Paga transactions',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const transactions = paga.getAllTransactions();
+          res.json({ success: true, transactions });
         }
       },
     ];
