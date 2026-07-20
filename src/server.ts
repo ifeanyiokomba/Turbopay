@@ -68,7 +68,54 @@ const config: TurboPayConfig = {
       terminal_id: process.env.QUICKTELLER_TERMINAL_ID,
       webhook_secret: process.env.QUICKTELLER_WEBHOOK_SECRET
     } : undefined,
-  }
+
+    // Mobile Money Providers
+    smartcash: process.env.SMARTCASH_CLIENT_ID ? {
+      client_id: process.env.SMARTCASH_CLIENT_ID!,
+      client_secret: process.env.SMARTCASH_CLIENT_SECRET || '',
+      shortcode: process.env.SMARTCASH_SHORTCODE,
+      webhook_secret: process.env.SMARTCASH_WEBHOOK_SECRET
+    } : undefined,
+
+    airtel_money: process.env.AIRTEL_MONEY_CLIENT_ID ? {
+      client_id: process.env.AIRTEL_MONEY_CLIENT_ID!,
+      client_secret: process.env.AIRTEL_MONEY_CLIENT_SECRET || '',
+      api_key: process.env.AIRTEL_MONEY_API_KEY,
+      webhook_secret: process.env.AIRTEL_MONEY_WEBHOOK_SECRET
+    } : undefined,
+
+    mtn_momo: process.env.MTN_MOMO_API_KEY ? {
+      api_key: process.env.MTN_MOMO_API_KEY!,
+      api_secret: process.env.MTN_MOMO_API_SECRET || '',
+      subscription_key: process.env.MTN_MOMO_SUBSCRIPTION_KEY || '',
+      disbursement_subscription_key: process.env.MTN_MOMO_DISBURSEMENT_SUB_KEY,
+      api_user: process.env.MTN_MOMO_API_USER,
+      callback_url: process.env.MTN_MOMO_CALLBACK_URL,
+      target_environment: process.env.MTN_MOMO_TARGET_ENVIRONMENT
+    } : undefined,
+
+    mpesa: process.env.MPESA_CONSUMER_KEY ? {
+      consumer_key: process.env.MPESA_CONSUMER_KEY!,
+      consumer_secret: process.env.MPESA_CONSUMER_SECRET || '',
+      shortcode: process.env.MPESA_SHORTCODE || '',
+      passkey: process.env.MPESA_PASSKEY || '',
+      callback_url: process.env.MPESA_CALLBACK_URL,
+      initiator_name: process.env.MPESA_INITIATOR_NAME,
+      security_credential: process.env.MPESA_SECURITY_CREDENTIAL
+    } : undefined,
+
+    paga: process.env.PAGA_PRINCIPAL ? {
+      principal: process.env.PAGA_PRINCIPAL!,
+      credentials: process.env.PAGA_CREDENTIALS || '',
+      hash_key: process.env.PAGA_HASH_KEY || '',
+      api_key: process.env.PAGA_API_KEY
+    } : undefined,
+  },
+  otp: {
+    api_key: process.env.OTP_API_KEY || '',
+    sender_id: process.env.OTP_SENDER_ID || 'TurboPay'
+  },
+  jwt_secret: process.env.JWT_SECRET
 };
 
 // =============================================================================
@@ -222,6 +269,42 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
             paramNames.forEach((name: string, index: number) => {
               request.params[name] = match[index + 1];
             });
+
+            // Enforce auth based on route declaration
+            if (route.auth === 'admin') {
+              const token = req.headers['authorization']?.replace('Bearer ', '');
+              if (!token) {
+                response.status(401).json({ error: 'Authorization token required' });
+                matched = true;
+                break;
+              }
+              const adminUser = turbopay.adminAuth.validateToken(token);
+              if (!adminUser) {
+                response.status(401).json({ error: 'Invalid or expired token' });
+                matched = true;
+                break;
+              }
+              if (adminUser.role !== 'master_admin' && adminUser.role !== 'admin') {
+                response.status(403).json({ error: 'Admin access required' });
+                matched = true;
+                break;
+              }
+              request.user = adminUser;
+            } else if (route.auth === 'customer') {
+              const token = req.headers['authorization']?.replace('Bearer ', '');
+              if (!token) {
+                response.status(401).json({ error: 'Authorization token required' });
+                matched = true;
+                break;
+              }
+              const customerUser = turbopay.customerAuth.validateToken(token);
+              if (!customerUser) {
+                response.status(401).json({ error: 'Invalid or expired token' });
+                matched = true;
+                break;
+              }
+              request.user = customerUser;
+            }
 
             // Validate required body fields for POST/PUT routes
             if (route.requiredBodyFields && (method === 'POST' || method === 'PUT')) {
