@@ -2184,3 +2184,26 @@ model TrustMessage {
   @@index([enabled])
   @@index([displayPriority])
 }
+
+model MobileMoneyTransaction {
+  id            String   @id @default(cuid())
+  userId        String
+  provider      String   // mtn-momo | airtel-money | m-pesa | paga
+  type          String   // collection | disbursement
+  phoneNumber   String
+  amountMinor   Int
+  currency      String
+  country       String
+  reference     String
+  status        String   @default("PENDING") // PENDING | PROCESSING | SUCCESS | FAILED | REVERSED | REJECTED
+  providerRef   String?
+  errorMessage  String?
+  metadata      String?  // JSON
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([provider, providerRef])
+  @@index([reference])
+}
