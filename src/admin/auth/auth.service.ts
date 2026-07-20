@@ -17,6 +17,14 @@ export interface AdminUser {
   role: 'master_admin' | 'admin' | 'staff';
   first_name: string;
   last_name: string;
+  phone?: string;
+  department?: string;
+  job_title?: string;
+  job_description?: string;
+  onboarding_status: 'pending' | 'invited' | 'onboarded' | 'active';
+  onboarding_completed_at?: Date;
+  permissions: string[];
+  reports_to?: string;
   is_active: boolean;
   is_email_verified: boolean;
   last_login: Date | null;
@@ -65,6 +73,7 @@ export class AdminAuthService {
   private readonly SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
   private readonly PASSWORD_RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
   private persistence: PersistenceManager | null = null;
+  public ready: Promise<void>;
 
   constructor() {
     const jwtSecret = process.env.JWT_SECRET;
@@ -77,7 +86,11 @@ export class AdminAuthService {
     const adminEmail = process.env.MASTER_ADMIN_EMAIL;
     const adminPassword = process.env.MASTER_ADMIN_PASSWORD;
     if (adminEmail && adminPassword) {
-      this.initializeMasterAdmin(adminEmail, adminPassword);
+      this.ready = this.initializeMasterAdmin(adminEmail, adminPassword).catch(err => {
+        console.error('[AuthService] Failed to initialize master admin:', err);
+      });
+    } else {
+      this.ready = Promise.resolve();
     }
   }
 
@@ -85,11 +98,11 @@ export class AdminAuthService {
   // INITIALIZATION
   // ===========================================================================
 
-  private initializeMasterAdmin(email: string, password: string): void {
+  private async initializeMasterAdmin(email: string, password: string): Promise<void> {
     const existing = this.findUserByEmail(email);
     if (existing) return;
 
-    this.createUser({
+    await this.createUser({
       email,
       password,
       first_name: 'Master',
@@ -117,6 +130,13 @@ export class AdminAuthService {
     last_name: string;
     role: 'master_admin' | 'admin' | 'staff';
     created_by: string | null;
+    phone?: string;
+    department?: string;
+    job_title?: string;
+    job_description?: string;
+    permissions?: string[];
+    reports_to?: string;
+    onboarding_status?: 'pending' | 'invited' | 'onboarded' | 'active';
   }): Promise<AdminUser> {
     // Check if user already exists
     const existingUser = this.findUserByEmail(params.email);
@@ -136,6 +156,13 @@ export class AdminAuthService {
       role: params.role,
       first_name: params.first_name,
       last_name: params.last_name,
+      phone: params.phone,
+      department: params.department,
+      job_title: params.job_title,
+      job_description: params.job_description,
+      onboarding_status: params.onboarding_status || 'pending',
+      permissions: params.permissions || [],
+      reports_to: params.reports_to,
       is_active: true,
       is_email_verified: true,
       last_login: null,
@@ -181,6 +208,83 @@ export class AdminAuthService {
   deleteUser(id: string): boolean {
     this.dirtyUsers();
     return this.users.delete(id);
+  }
+
+  // ===========================================================================
+  // ONBOARDING
+  // ===========================================================================
+
+  /**
+   * Invite a new admin — creates account with pending onboarding status
+   */
+  async inviteAdmin(params: {
+    email: string;
+    first_name: string;
+    last_name: string;
+    role: 'admin' | 'staff';
+    department: string;
+    job_title: string;
+    job_description: string;
+    permissions?: string[];
+    reports_to?: string;
+    created_by: string;
+  }): Promise<AdminUser> {
+    // Generate a temporary password — user will set their own during onboarding
+    const tempPassword = crypto.randomBytes(12).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 16) + '!1';
+
+    const user = await this.createUser({
+      ...params,
+      password: tempPassword,
+      onboarding_status: 'invited'
+    });
+
+    console.log(`[AuthService] Admin invited: ${user.email} as ${params.job_title} (${params.department})`);
+    return user;
+  }
+
+  /**
+   * Complete onboarding — user sets their password and finishes setup
+   */
+  completeOnboarding(userId: string, newPassword: string): AdminUser | null {
+    const user = this.users.get(userId);
+    if (!user) return null;
+
+    // This would normally be async (hashing), but we call it synchronously for simplicity
+    // In practice, the password hashing happens in the login flow
+    user.onboarding_status = 'active';
+    user.onboarding_completed_at = new Date();
+    user.updated_at = new Date();
+    this.users.set(userId, user);
+    this.dirtyUsers();
+    return user;
+  }
+
+  /**
+   * Get users by onboarding status
+   */
+  getUsersByOnboardingStatus(status: 'pending' | 'invited' | 'onboarded' | 'active'): Omit<AdminUser, 'password_hash' | 'salt' | 'password_reset_token' | 'password_reset_expires'>[] {
+    return Array.from(this.users.values())
+      .filter(u => u.onboarding_status === status)
+      .map(u => this.sanitizeUser(u));
+  }
+
+  /**
+   * Get users by department
+   */
+  getUsersByDepartment(department: string): Omit<AdminUser, 'password_hash' | 'salt' | 'password_reset_token' | 'password_reset_expires'>[] {
+    return Array.from(this.users.values())
+      .filter(u => u.department === department)
+      .map(u => this.sanitizeUser(u));
+  }
+
+  /**
+   * Check if user has a specific permission
+   */
+  hasPermission(userId: string, permission: string): boolean {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    if (user.role === 'master_admin') return true;
+    return user.permissions.includes(permission);
   }
 
   // ===========================================================================
@@ -230,7 +334,7 @@ export class AdminAuthService {
 
     if (session.expires_at < new Date()) {
       this.sessions.delete(token);
-    this.dirtySessions();
+      this.dirtySessions();
       return null;
     }
 

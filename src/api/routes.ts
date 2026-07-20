@@ -19,6 +19,8 @@ import { GeoRoutingContext } from '../types';
 import { ComplianceService } from '../services/compliance-service';
 import { AISupportService } from '../services/ai-support';
 import { PagaReverseAPIService } from '../services/paga-reverse-api';
+import { NotificationEngine } from '../services/notification-engine';
+import { EmailService } from '../services/email-service';
 
 // =============================================================================
 // ROUTE DEFINITIONS
@@ -54,6 +56,8 @@ export class TurboPayRoutes {
   private geoRouter: GeoRoutedOrchestrator | undefined;
   private aiSupport: AISupportService | undefined;
   private pagaReverseAPI: PagaReverseAPIService | undefined;
+  private notificationEngine: NotificationEngine | undefined;
+  private emailService: EmailService | undefined;
 
   constructor(deps: {
     processor: TransactionProcessor;
@@ -75,6 +79,8 @@ export class TurboPayRoutes {
     geoRouter?: GeoRoutedOrchestrator;
     aiSupport?: AISupportService;
     pagaReverseAPI?: PagaReverseAPIService;
+    notificationEngine?: NotificationEngine;
+    emailService?: EmailService;
   }) {
     this.processor = deps.processor;
     this.international = deps.international;
@@ -95,6 +101,8 @@ export class TurboPayRoutes {
     this.geoRouter = deps.geoRouter;
     this.aiSupport = deps.aiSupport;
     this.pagaReverseAPI = deps.pagaReverseAPI;
+    this.notificationEngine = deps.notificationEngine;
+    this.emailService = deps.emailService;
   }
 
   // ===========================================================================
@@ -131,6 +139,10 @@ export class TurboPayRoutes {
       ...this.aiSupportRoutes(),
       // PAGA REVERSE-API
       ...this.pagaReverseAPIRoutes(),
+      // NOTIFICATIONS
+      ...this.notificationRoutes(),
+      // EMAIL
+      ...this.emailRoutes(),
     ];
   }
 
@@ -1652,6 +1664,221 @@ export class TurboPayRoutes {
           if (!await this.requireAdmin(req, res)) return;
           const transactions = paga.getAllTransactions();
           res.json({ success: true, transactions });
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // NOTIFICATION ROUTES
+  // ===========================================================================
+
+  private notificationRoutes(): Route[] {
+    if (!this.notificationEngine) return [];
+    const notif = this.notificationEngine;
+
+    return [
+      // User notification routes
+      {
+        method: 'GET',
+        path: '/api/v1/notifications',
+        description: 'Get user notifications',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const notifications = notif.getUserNotifications(req.user?.id, {
+            limit: parseInt(req.query.limit as string || '50'),
+            offset: parseInt(req.query.offset as string || '0'),
+            category: req.query.category as any,
+            unread_only: req.query.unread === 'true'
+          });
+          const unread_count = notif.getUnreadCount(req.user?.id);
+          res.json({ success: true, notifications, unread_count });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/notifications/:id/read',
+        description: 'Mark notification as read',
+        auth: 'customer',
+        handler: async (req, res) => {
+          notif.markAsRead(req.params.id);
+          res.json({ success: true });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/notifications/read-all',
+        description: 'Mark all notifications as read',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const count = notif.markAllAsRead(req.user?.id);
+          res.json({ success: true, marked: count });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/notifications/preferences',
+        description: 'Get notification preferences',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const prefs = notif.getPreferences(req.user?.id);
+          res.json({ success: true, preferences: prefs });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/notifications/preferences',
+        description: 'Update notification preferences',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const prefs = notif.updatePreferences(req.user?.id, req.body);
+          res.json({ success: true, preferences: prefs });
+        }
+      },
+      {
+        method: 'DELETE',
+        path: '/api/v1/notifications/:id',
+        description: 'Delete a notification',
+        auth: 'customer',
+        handler: async (req, res) => {
+          notif.deleteNotification(req.params.id);
+          res.json({ success: true });
+        }
+      },
+
+      // Admin notification routes
+      {
+        method: 'GET',
+        path: '/api/v1/admin/notifications/stats',
+        description: 'Get notification analytics',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const stats = notif.getStats({
+            start_date: req.query.start_date ? new Date(req.query.start_date as string) : undefined,
+            end_date: req.query.end_date ? new Date(req.query.end_date as string) : undefined,
+            user_id: req.query.user_id as string
+          });
+          res.json({ success: true, stats });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/admin/notifications/recent',
+        description: 'Get recent notifications',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const notifications = notif.getRecentNotifications(parseInt(req.query.limit as string || '50'));
+          res.json({ success: true, notifications });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/notifications/send',
+        description: 'Send notification to user',
+        auth: 'admin',
+        requiredBodyFields: ['user_id', 'title', 'body'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const notification = await notif.emitInApp(
+            req.body.user_id,
+            req.body.event_type || 'custom',
+            req.body.title,
+            req.body.body,
+            {
+              category: req.body.category,
+              priority: req.body.priority,
+              action_url: req.body.action_url
+            }
+          );
+          res.json({ success: true, notification });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/admin/notifications/templates',
+        description: 'List notification templates',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const templates = notif.getAllTemplates();
+          res.json({ success: true, templates });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/admin/notifications/templates/:id',
+        description: 'Update notification template',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const template = notif.updateTemplate(req.params.id, req.body);
+          if (!template) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+          res.json({ success: true, template });
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // EMAIL ROUTES
+  // ===========================================================================
+
+  private emailRoutes(): Route[] {
+    if (!this.emailService) return [];
+    const email = this.emailService;
+
+    return [
+      {
+        method: 'GET',
+        path: '/api/v1/admin/email/templates',
+        description: 'List email templates',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const templates = email.getAllTemplates();
+          res.json({ success: true, templates });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/admin/email/templates/:id',
+        description: 'Update email template',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const template = email.updateTemplate(req.params.id, req.body);
+          if (!template) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+          res.json({ success: true, template });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/email/send',
+        description: 'Send email (admin)',
+        auth: 'admin',
+        requiredBodyFields: ['to', 'type'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const result = await email.send({
+            to: req.body.to,
+            type: req.body.type,
+            subject: req.body.subject,
+            variables: req.body.variables
+          });
+          res.json({ success: true, result });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/admin/email/send-log',
+        description: 'Get email send log',
+        auth: 'admin',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const log = email.getSendLog(parseInt(req.query.limit as string || '100'));
+          res.json({ success: true, log });
         }
       },
     ];

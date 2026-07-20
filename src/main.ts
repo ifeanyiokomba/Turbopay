@@ -30,6 +30,8 @@ import { FundingWorkflowService } from './services/funding-workflow';
 import { GeoRoutedOrchestrator } from './services/geo-router';
 import { AISupportService } from './services/ai-support';
 import { PagaReverseAPIService } from './services/paga-reverse-api';
+import { NotificationEngine } from './services/notification-engine';
+import { EmailService } from './services/email-service';
 
 // =============================================================================
 // TYPES
@@ -82,6 +84,8 @@ export interface TurboPayInstance {
   geoRouter: GeoRoutedOrchestrator;
   aiSupport: AISupportService;
   pagaReverseAPI: PagaReverseAPIService;
+  notificationEngine: NotificationEngine;
+  emailService: EmailService;
 
   // Auth & Security Services
   adminAuth: AdminAuthService;
@@ -208,7 +212,19 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
 
   const pagaReverseAPI = new PagaReverseAPIService();
 
-  console.log('[TurboPay] AI Support and Paga Reverse-API initialized');
+  const notificationEngine = new NotificationEngine();
+  notificationEngine.registerPersistence(persistence);
+
+  const emailService = new EmailService({
+    api_key: process.env.RESEND_API_KEY || '',
+    from_name: 'TurboPay',
+    from_email: process.env.EMAIL_FROM || 'noreply@turbopay.com',
+    reply_to: process.env.EMAIL_REPLY_TO || 'support@turbopay.com',
+    frontend_url: process.env.FRONTEND_URL || `http://${config.host}:${config.port}`
+  });
+  emailService.registerPersistence(persistence);
+
+  console.log('[TurboPay] AI Support, Paga Reverse-API, Notifications, and Email services initialized');
 
   // ===========================================================================
   // 6. PROVIDER MANAGEMENT
@@ -265,7 +281,9 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     fundingWorkflow,
     geoRouter,
     aiSupport,
-    pagaReverseAPI
+    pagaReverseAPI,
+    notificationEngine,
+    emailService
   });
 
   console.log('[TurboPay] API routes initialized');
@@ -581,6 +599,8 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     geoRouter,
     aiSupport,
     pagaReverseAPI,
+    notificationEngine,
+    emailService,
 
     // Auth & Security
     adminAuth,
