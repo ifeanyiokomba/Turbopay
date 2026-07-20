@@ -16,6 +16,7 @@ import { AdminAuthService } from '../admin/auth/auth.service';
 import { CustomerAuthService } from '../auth/customer-auth.service';
 import { GeoRoutedOrchestrator } from '../services/geo-router';
 import { GeoRoutingContext } from '../types';
+import { ComplianceService } from '../services/compliance-service';
 
 // =============================================================================
 // ROUTE DEFINITIONS
@@ -45,7 +46,7 @@ export class TurboPayRoutes {
   private adminAuth: AdminAuthService;
   private customerAuth: CustomerAuthService;
   private otp: any;
-  private compliance: any;
+  private compliance: ComplianceService | undefined;
   private mobileMoney: any;
   private fundingWorkflow: any;
   private geoRouter: GeoRoutedOrchestrator | undefined;
@@ -64,7 +65,7 @@ export class TurboPayRoutes {
     adminAuth: AdminAuthService;
     customerAuth: CustomerAuthService;
     otp?: any;
-    compliance?: any;
+    compliance?: ComplianceService;
     mobileMoney?: any;
     fundingWorkflow?: any;
     geoRouter?: GeoRoutedOrchestrator;
@@ -116,6 +117,8 @@ export class TurboPayRoutes {
       ...this.healthRoutes(),
       // GEO-ROUTING
       ...this.geoRoutes(),
+      // COMPLIANCE & SECURITY
+      ...this.complianceRoutes(),
     ];
   }
 
@@ -878,6 +881,230 @@ export class TurboPayRoutes {
           if (!await this.requireAdmin(req, res)) return;
           const comparison = this.analytics.getCostComparison(req.query.operation);
           res.json({ success: true, comparison });
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // COMPLIANCE & SECURITY ROUTES
+  // ===========================================================================
+
+  private complianceRoutes(): Route[] {
+    if (!this.compliance) return [];
+    const compliance = this.compliance;
+
+    return [
+      // Homepage Trust Data
+      {
+        method: 'GET',
+        path: '/api/v1/trust',
+        description: 'Get homepage trust data (indicators, compliance, badges, logos)',
+        handler: async (req, res) => {
+          const data = compliance.getHomepageTrustData();
+          res.json({ success: true, data });
+        }
+      },
+
+      // Compliance Certifications
+      {
+        method: 'GET',
+        path: '/api/v1/admin/compliance/certifications',
+        description: 'List all compliance certifications',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const certs = compliance.getAllCertifications();
+          res.json({ success: true, certifications: certs });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/compliance/certifications',
+        description: 'Create compliance certification',
+        requiredBodyFields: ['name', 'description', 'status'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const cert = compliance.createCertification(
+            { ...req.body, created_by: req.user?.id },
+            req.user?.id,
+            req.ip,
+            req.headers['user-agent']
+          );
+          res.json({ success: true, certification: cert });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/admin/compliance/certifications/:id',
+        description: 'Update compliance certification',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const cert = compliance.updateCertification(
+            req.params.id, req.body, req.user?.id, req.ip, req.headers['user-agent']
+          );
+          if (!cert) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+          res.json({ success: true, certification: cert });
+        }
+      },
+      {
+        method: 'DELETE',
+        path: '/api/v1/admin/compliance/certifications/:id',
+        description: 'Delete compliance certification',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const deleted = compliance.deleteCertification(req.params.id, req.user?.id, req.ip, req.headers['user-agent']);
+          res.json({ success: deleted });
+        }
+      },
+
+      // Security Badges
+      {
+        method: 'GET',
+        path: '/api/v1/admin/compliance/badges',
+        description: 'List all security badges',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const badges = compliance.getAllSecurityBadges();
+          res.json({ success: true, badges });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/compliance/badges',
+        description: 'Create security badge',
+        requiredBodyFields: ['name', 'description', 'icon'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const badge = compliance.createSecurityBadge(
+            req.body, req.user?.id, req.ip, req.headers['user-agent']
+          );
+          res.json({ success: true, badge });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/admin/compliance/badges/:id',
+        description: 'Update security badge',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const badge = compliance.updateSecurityBadge(
+            req.params.id, req.body, req.user?.id, req.ip, req.headers['user-agent']
+          );
+          if (!badge) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+          res.json({ success: true, badge });
+        }
+      },
+      {
+        method: 'DELETE',
+        path: '/api/v1/admin/compliance/badges/:id',
+        description: 'Delete security badge',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const deleted = compliance.deleteSecurityBadge(req.params.id, req.user?.id, req.ip, req.headers['user-agent']);
+          res.json({ success: deleted });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/admin/compliance/badges/:id/reorder',
+        description: 'Reorder security badge',
+        requiredBodyFields: ['priority'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const reordered = compliance.reorderSecurityBadge(req.params.id, req.body.priority, req.user?.id);
+          res.json({ success: reordered });
+        }
+      },
+
+      // Provider Logos
+      {
+        method: 'GET',
+        path: '/api/v1/admin/compliance/provider-logos',
+        description: 'List all provider logos',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const logos = compliance.getAllProviderLogos();
+          res.json({ success: true, logos });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/compliance/provider-logos',
+        description: 'Create provider logo',
+        requiredBodyFields: ['provider_name', 'logo_url', 'display_name'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const logo = compliance.createProviderLogo(
+            req.body, req.user?.id, req.ip, req.headers['user-agent']
+          );
+          res.json({ success: true, logo });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/admin/compliance/provider-logos/:id',
+        description: 'Update provider logo',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const logo = compliance.updateProviderLogo(
+            req.params.id, req.body, req.user?.id, req.ip, req.headers['user-agent']
+          );
+          if (!logo) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+          res.json({ success: true, logo });
+        }
+      },
+      {
+        method: 'DELETE',
+        path: '/api/v1/admin/compliance/provider-logos/:id',
+        description: 'Delete provider logo',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const deleted = compliance.deleteProviderLogo(req.params.id, req.user?.id, req.ip, req.headers['user-agent']);
+          res.json({ success: deleted });
+        }
+      },
+
+      // Trust Messages
+      {
+        method: 'GET',
+        path: '/api/v1/admin/compliance/trust-messages',
+        description: 'List all trust messages',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const messages = compliance.getAllTrustIndicators();
+          res.json({ success: true, messages });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/compliance/trust-messages',
+        description: 'Create trust message',
+        requiredBodyFields: ['title', 'message', 'type'],
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const msg = compliance.createTrustMessage(
+            req.body, req.user?.id, req.ip, req.headers['user-agent']
+          );
+          res.json({ success: true, message: msg });
+        }
+      },
+
+      // Compliance Audit Log
+      {
+        method: 'GET',
+        path: '/api/v1/admin/compliance/audit-log',
+        description: 'Get compliance audit log',
+        handler: async (req, res) => {
+          if (!await this.requireAdmin(req, res)) return;
+          const logs = compliance.getAuditLogs({
+            entity_type: req.query.entity_type as string,
+            admin_id: req.query.admin_id as string,
+            start_date: req.query.start_date ? new Date(req.query.start_date as string) : undefined,
+            end_date: req.query.end_date ? new Date(req.query.end_date as string) : undefined,
+            limit: parseInt(req.query.limit as string || '100'),
+            offset: parseInt(req.query.offset as string || '0')
+          });
+          res.json({ success: true, logs });
         }
       },
     ];
