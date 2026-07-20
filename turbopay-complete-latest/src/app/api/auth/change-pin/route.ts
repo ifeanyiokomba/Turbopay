@@ -2,8 +2,9 @@ import { requireUser } from "@/lib/turbopay/auth";
 import { errorJson, json } from "@/lib/turbopay/api";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/turbopay/audit";
-import { hashPin, verifyPin } from "@/lib/turbopay/crypto";
+import { hashPin } from "@/lib/turbopay/crypto";
 import { hashOtp, generateOtp } from "@/lib/turbopay/crypto";
+import { verifyOtp } from "@/lib/turbopay/otp-verify";
 import crypto from "crypto";
 
 /**
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
         id: attemptId,
         userId: user.id,
         purpose: "CHANGE_PIN",
-        verified: false,
+        consumed: false,
         expiresAt: { gt: new Date() },
       },
     });
@@ -75,15 +76,14 @@ export async function POST(req: Request) {
     }
 
     // Verify the OTP code
-    const { verifyOtp: verifyOtpFn } = await import("@/lib/turbopay/crypto");
-    const valid = verifyOtpFn(otp, otpRecord.code);
+    const valid = verifyOtp(otp, otpRecord.code);
     if (!valid) {
-      await db.otpCode.update({ where: { id: otpRecord.id }, data: { verified: true } });
+      await db.otpCode.update({ where: { id: otpRecord.id }, data: { consumed: true } });
       return errorJson("Invalid OTP", 400);
     }
 
     // Mark OTP as used
-    await db.otpCode.update({ where: { id: otpRecord.id }, data: { verified: true } });
+    await db.otpCode.update({ where: { id: otpRecord.id }, data: { consumed: true } });
 
     // Hash the new PIN using scrypt (consistent with the rest of the codebase)
     const storedHash = await hashPin(newPin);
