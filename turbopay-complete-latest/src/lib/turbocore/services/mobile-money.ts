@@ -408,7 +408,10 @@ export class MobileMoneyService {
       },
     });
 
-    return transaction as MobileMoneyTransaction;
+    return {
+      ...transaction,
+      metadata: transaction.metadata ? JSON.parse(transaction.metadata) : undefined,
+    } as MobileMoneyTransaction;
   }
 
   private async updateTransaction(
@@ -429,7 +432,12 @@ export class MobileMoneyService {
       where: { id },
     });
 
-    return transaction as MobileMoneyTransaction | null;
+    if (!transaction) return null;
+
+    return {
+      ...transaction,
+      metadata: transaction.metadata ? JSON.parse(transaction.metadata) : undefined,
+    } as MobileMoneyTransaction;
   }
 }
 
