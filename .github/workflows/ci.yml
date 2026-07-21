@@ -153,11 +153,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to Render
-        uses: bucknerworks/render-deploy@v1
-        with:
-          service: turbopay-api-staging
-          api-key: ${{ secrets.RENDER_API_KEY }}
+      - name: Trigger Render Deploy
+        if: ${{ secrets.RENDER_API_KEY != '' }}
+        run: |
+          echo "Triggering Render deploy for staging..."
+          curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" || echo "Render deploy skipped (not configured)"
 
   # =========================================================================
   # Deploy to Production
@@ -173,11 +175,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to Render
-        uses: bucknerworks/render-deploy@v1
-        with:
-          service: turbopay-api
-          api-key: ${{ secrets.RENDER_API_KEY }}
+      - name: Trigger Render Deploy
+        if: ${{ secrets.RENDER_API_KEY != '' }}
+        run: |
+          echo "Triggering Render deploy for production..."
+          curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_PRODUCTION_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" || echo "Render deploy skipped (not configured)"
 
   # =========================================================================
   # Notify
