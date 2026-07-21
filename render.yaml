@@ -3,7 +3,7 @@ services:
     name: turbopay-api
     runtime: node
     plan: starter
-    buildCommand: npm install --include=dev && npx tsc
+    buildCommand: npm ci && npm run build
     startCommand: node dist/server.js
     envVars:
       - key: NODE_ENV
