@@ -5,6 +5,7 @@ import { routingEngine } from "@/lib/turbocore/config/routing-engine";
 import { adapterFactory } from "@/lib/turbocore/providers/adapter-factory";
 import { getCircuitBreaker } from "@/lib/turbocore/providers/circuit-breaker";
 import { audit } from "@/lib/turbopay/audit";
+import { generateReference } from "@/lib/turbopay/reference";
 import { z } from "zod";
 import type { IWalletFundingProvider } from "@/lib/turbocore/providers/interfaces";
 
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create a transaction reference
-    const txRef = `TPL-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const txRef = generateReference("TPL");
 
     // Route to the best provider for collection
     const decision = await routingEngine.decide({

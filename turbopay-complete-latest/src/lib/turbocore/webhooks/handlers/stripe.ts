@@ -16,6 +16,7 @@ import { processFunding } from "@/lib/turbopay/funding";
 import { audit } from "@/lib/turbopay/audit";
 import { decryptPii } from "@/lib/turbopay/crypto";
 import { debitWallet } from "@/lib/turbopay/ledger";
+import { generateReference } from "@/lib/turbopay/reference";
 
 interface StripePaymentIntent {
   id: string;
@@ -167,7 +168,7 @@ async function handleChargeRefunded(
 
   await db.transaction.create({
     data: {
-      reference: `REF_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      reference: generateReference("REF"),
       userId: origTx.userId,
       walletId: origTx.walletId,
       type: "REFUND",

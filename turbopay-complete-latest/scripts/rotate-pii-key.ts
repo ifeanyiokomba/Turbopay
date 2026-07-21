@@ -131,7 +131,7 @@ async function main() {
 
   let totalProcessed = 0;
   let totalReEncrypted = 0;
-  let totalFailed = 0;
+  const totalFailed = 0;
 
   for (const { table, field } of FIELDS) {
     console.log(`\nProcessing ${table}.${field}...`);

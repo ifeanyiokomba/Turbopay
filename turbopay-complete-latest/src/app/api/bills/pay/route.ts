@@ -14,6 +14,7 @@ import { requireUser } from "@/lib/turbopay/auth";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/turbopay/audit";
+import { generateReference } from "@/lib/turbopay/reference";
 
 export async function POST(req: Request) {
   // Auth
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
   if (wallet.balanceKobo < finalAmount) return errorJson("Insufficient funds", 400);
 
   // Create transaction
-  const reference = `BILL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const reference = generateReference("BILL");
 
   try {
     // Debit wallet

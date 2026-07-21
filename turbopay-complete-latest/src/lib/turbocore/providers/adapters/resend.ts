@@ -139,7 +139,7 @@ const HTML_TEMPLATES: Record<string, string> = {
         <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
       </div>
       <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{userName}},</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay login verification code is:</p>
         <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
         <p style="color:#888;font-size:12px;margin:16px 0 0">This code expires in 5 minutes. Do not share it with anyone.</p>
@@ -155,7 +155,7 @@ const HTML_TEMPLATES: Record<string, string> = {
         <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
       </div>
       <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{userName}},</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">Your TurboPay transaction confirmation code is:</p>
         <h2 style="color:#1a1a2e;font-size:36px;letter-spacing:8px;margin:16px 0">{{otp}}</h2>
         <p style="color:#888;font-size:12px;margin:16px 0 0">Enter this code to authorize your transaction.</p>
@@ -171,7 +171,7 @@ const HTML_TEMPLATES: Record<string, string> = {
         <h1 style="color:#1a1a2e;font-size:24px;margin:0">TurboPay</h1>
       </div>
       <div style="background:#f8f9fa;border-radius:12px;padding:32px;text-align:center">
-        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{firstName}},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 8px">Hello {{userName}},</p>
         <p style="color:#555;font-size:14px;margin:0 0 16px">A new device has been used to access your TurboPay account.</p>
         <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Device:</strong> {{deviceInfo}}</p>
         <p style="color:#555;font-size:14px;margin:0 0 8px"><strong>Location:</strong> {{ip}}</p>

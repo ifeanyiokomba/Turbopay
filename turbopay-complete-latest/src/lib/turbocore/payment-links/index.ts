@@ -8,6 +8,7 @@
 
 import { db } from "@/lib/db";
 import { audit } from "@/lib/turbopay/audit";
+import { generateReference } from "@/lib/turbopay/reference";
 import { capabilityRegistry } from "@/lib/turbocore/providers/capabilities";
 
 // ─── Types ───────────────────────────────────────────────────
@@ -50,7 +51,7 @@ class PaymentLinkService {
    * Create a new payment link.
    */
   async create(input: CreatePaymentLinkInput): Promise<PaymentLinkView> {
-    const reference = this.generateReference();
+    const reference = generateReference("PL");
     const amountKobo = input.amountNaira ? Math.round(input.amountNaira * 100) : 0;
     const minAmountKobo = input.minAmountNaira ? Math.round(input.minAmountNaira * 100) : null;
     const maxAmountKobo = input.maxAmountNaira ? Math.round(input.maxAmountNaira * 100) : null;
@@ -209,15 +210,6 @@ class PaymentLinkService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────
-
-  private generateReference(): string {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let ref = "PL-";
-    for (let i = 0; i < 8; i++) {
-      ref += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return ref;
-  }
 
   private toView(link: any): PaymentLinkView {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://turbopay.okomba.com";

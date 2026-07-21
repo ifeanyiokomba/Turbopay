@@ -191,3 +191,25 @@ export function verifyPin(pin: string, stored: string): boolean {
 export function hashOtp(otp: string): string {
   return crypto.createHash("sha256").update(otp).digest("hex");
 }
+
+// ─── Input Validation ────────────────────────────────────────────────────
+
+/** Validate a Nigerian BVN (exactly 11 digits). */
+export function validateBVN(bvn: string): boolean {
+  return /^\d{11}$/.test(bvn);
+}
+
+/** Validate a Nigerian NIN (exactly 11 digits). */
+export function validateNIN(nin: string): boolean {
+  return /^\d{11}$/.test(nin);
+}
+
+/** Validate an email address (basic check). */
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/** Validate a phone number (7-15 digits, no formatting). */
+export function validatePhoneNumber(phone: string): boolean {
+  return /^\d{7,15}$/.test(phone);
+}

@@ -150,7 +150,7 @@ export async function creditWallet(
       description: opts.description ?? null,
     });
     return { ledgerEntryId: res.entryId, balanceAfterKobo: res.balanceAfterKobo };
-  });
+  }, { timeout: 15000 });
 }
 
 export interface DebitResult {
@@ -188,7 +188,7 @@ export async function debitWallet(
       description: opts.description ?? null,
     });
     return { ledgerEntryId: res.entryId, balanceAfterKobo: res.balanceAfterKobo };
-  });
+  }, { timeout: 15000 });
 }
 
 export interface TransferResult {

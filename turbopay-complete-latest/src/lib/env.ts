@@ -5,26 +5,32 @@ import { z } from "zod";
  *
  * Validated once at module load. Any missing/invalid required variable throws
  * a clear error at startup (fail-fast) rather than failing mid-transaction.
+ *
+ * During `next build`, NODE_ENV=production but env vars may not be set locally.
+ * We skip strict validation during build (NEXT_BUILD is set by Next.js) so the
+ * build succeeds. At runtime on Vercel, the real env vars are injected.
  */
+
+const isBuilding = !!process.env.NEXT_BUILD;
 
 const envSchema = z.object({
   // Database — PostgreSQL in production, SQLite file for local dev.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
   // PII encryption key — required in production.
-  TURBOPAY_PII_KEY: process.env.NODE_ENV === "production"
+  TURBOPAY_PII_KEY: (process.env.NODE_ENV === "production" && !isBuilding)
     ? z.string().min(16, "TURBOPAY_PII_KEY must be at least 16 characters in production")
     : z.string().optional(),
 
   // Monnify webhook secret — required in production (prevents forged funding).
-  TURBOPAY_MONNIFY_WEBHOOK_SECRET: process.env.NODE_ENV === "production"
+  TURBOPAY_MONNIFY_WEBHOOK_SECRET: (process.env.NODE_ENV === "production" && !isBuilding)
     ? z.string().min(16, "TURBOPAY_MONNIFY_WEBHOOK_SECRET must be set in production")
     : z.string().optional(),
 
   // Cron secret — required in any non-dev/test environment (prevents forged cron invocations).
   // Staging/UAT environments must set this — the dev/test fallback is a security risk
   // when the app is internet-accessible.
-  CRON_SECRET: (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test")
+  CRON_SECRET: (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test" || isBuilding)
     ? z.string().optional()
     : z.string().min(16, "CRON_SECRET must be set in non-development environments"),
 

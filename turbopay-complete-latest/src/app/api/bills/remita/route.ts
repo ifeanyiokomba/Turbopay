@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/turbopay/auth";
 import { errorJson, json } from "@/lib/turbopay/api";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/turbopay/audit";
+import { generateReference } from "@/lib/turbopay/reference";
 
 /**
  * GET /api/bills/remita — list available Remita billers
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
     if (wallet.balanceKobo < amountKobo) return errorJson("Insufficient funds", 400);
 
     // Create transaction
-    const reference = `REMITA-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const reference = generateReference("REMITA");
     const transaction = await db.transaction.create({
       data: {
         userId: user.id,

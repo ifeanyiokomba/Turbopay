@@ -276,9 +276,30 @@ export class PaystackAdapter extends BaseAdapter {
 
     if (request.recipient.type === 'bank') {
       const bankRecipient = request.recipient as any;
+      
+      // Resolve account name first (fraud prevention)
+      let resolvedName = '';
+      try {
+        const resolution = await this.resolveBank(
+          bankRecipient.bank.code,
+          bankRecipient.bank.account_number
+        );
+        resolvedName = resolution.account_name;
+        
+        // Log if provided name doesn't match resolved name
+        const providedName = bankRecipient.name ? `${bankRecipient.name.first} ${bankRecipient.name.last}` : '';
+        if (providedName && resolvedName && !this.namesMatch(providedName, resolvedName)) {
+          console.warn(`[Paystack] Name mismatch: provided="${providedName}" resolved="${resolvedName}"`);
+        }
+      } catch (error) {
+        console.error('[Paystack] Account resolution failed:', (error as Error).message);
+        // Continue with provided name if resolution fails
+        resolvedName = bankRecipient.name ? `${bankRecipient.name.first} ${bankRecipient.name.last}` : '';
+      }
+
       recipientData = {
         type: 'nuban',
-        name: bankRecipient.name ? `${bankRecipient.name.first} ${bankRecipient.name.last}` : '',
+        name: resolvedName,
         account_number: bankRecipient.bank.account_number,
         bank_code: bankRecipient.bank.code,
         currency: request.currency
@@ -289,6 +310,30 @@ export class PaystackAdapter extends BaseAdapter {
 
     const response = await this.httpClient.post('/transferrecipient', recipientData);
     return response.data.data;
+  }
+
+  /**
+   * Check if two names match (fuzzy match for fraud detection)
+   */
+  private namesMatch(name1: string, name2: string): boolean {
+    const normalize = (n: string) => n.toLowerCase().replace(/[^a-z]/g, '');
+    const n1 = normalize(name1);
+    const n2 = normalize(name2);
+    
+    // Exact match
+    if (n1 === n2) return true;
+    
+    // One contains the other
+    if (n1.includes(n2) || n2.includes(n1)) return true;
+    
+    // Check if first/last names match (allow middle name differences)
+    const parts1 = n1.split(' ');
+    const parts2 = n2.split(' ');
+    if (parts1.length >= 2 && parts2.length >= 2) {
+      return parts1[0] === parts2[0] && parts1[parts1.length - 1] === parts2[parts2.length - 1];
+    }
+    
+    return false;
   }
 
   // ===========================================================================

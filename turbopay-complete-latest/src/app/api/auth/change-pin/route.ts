@@ -75,8 +75,8 @@ export async function POST(req: Request) {
       return errorJson("Invalid or expired OTP", 400);
     }
 
-    // Verify the OTP code
-    const valid = verifyOtp(otp, otpRecord.code);
+    // Verify the OTP code (hash candidate before comparing against stored SHA-256 hash)
+    const valid = verifyOtp(hashOtp(otp), otpRecord.code);
     if (!valid) {
       await db.otpCode.update({ where: { id: otpRecord.id }, data: { consumed: true } });
       return errorJson("Invalid OTP", 400);

@@ -32,7 +32,7 @@ export async function monnifyCreateReservedAccount(
     accountName,
     bankName: MONNIFY_BANK.name,
     bankCode: MONNIFY_BANK.code,
-    providerRef: `MNF-${customerRef}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+    providerRef: `MNF-${customerRef}-${generateReference().split("-")[1]}`,
   };
 }
 
@@ -190,7 +190,7 @@ export async function baxiPayElectricity(input: {
   await delay(200);
   return {
     providerRef: generateReference("BAX"),
-    token: input.meterType === "PREPAID" ? Math.random().toString(36).slice(2, 16).toUpperCase() : undefined,
+    token: input.meterType === "PREPAID" ? generateReference().split("-")[1] : undefined,
     status: "SUCCESS",
   };
 }

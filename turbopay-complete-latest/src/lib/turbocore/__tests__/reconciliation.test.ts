@@ -15,11 +15,12 @@ let testUserId: string;
 let testWalletId: string;
 
 beforeAll(async () => {
+  const suffix = Math.floor(Math.random() * 1_000_000).toString();
   const user = await db.user.create({
     data: {
       fullName: "Recon Test User",
-      email: "recon-test@turbopay.test",
-      phone: "+2347330000001",
+      email: `recon-${suffix}@turbopay.test`,
+      phone: `+234733000${suffix.padStart(4, "0").slice(-4)}`,
       passwordHash: hashPassword("testpassword123"),
       kycTier: 3,
       kycStatus: "VERIFIED",
@@ -44,7 +45,10 @@ afterAll(async () => {
 beforeEach(async () => {
   await db.ledgerEntry.deleteMany({ where: { walletId: testWalletId } });
   await db.transaction.deleteMany({ where: { walletId: testWalletId } });
-  await db.wallet.update({ where: { id: testWalletId }, data: { balanceKobo: 0, status: "ACTIVE" } });
+  const wallet = await db.wallet.findUnique({ where: { id: testWalletId }, select: { id: true } });
+  if (wallet) {
+    await db.wallet.update({ where: { id: testWalletId }, data: { balanceKobo: 0, status: "ACTIVE" } });
+  }
 });
 
 describe("Reconciliation Engine", () => {

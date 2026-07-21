@@ -16,5 +16,10 @@ export default defineConfig({
     // the default 5s, especially against a remote Neon database.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // Run test files sequentially to avoid Prisma + PgBouncer "prepared
+    // statement already exists" conflicts. Each file gets its own Prisma
+    // client instance; running files in parallel causes PgBouncer to see
+    // competing prepared-statement names across connections.
+    fileParallelism: false,
   },
 });

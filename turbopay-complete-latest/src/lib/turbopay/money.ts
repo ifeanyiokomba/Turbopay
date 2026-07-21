@@ -46,6 +46,41 @@ export function parseNairaToKobo(input: string): number {
   return nairaToKobo(naira);
 }
 
-// Reference & account-number generators live in reference.ts (crypto-secure,
-// isolated to avoid circular deps). Re-exported here for backward compat.
+// ─── Multi-Currency Minor Units ──────────────────────────────────────────
+
+/**
+ * Decimal places per currency code. Uses `?? 2` (not `||`) so that
+ * currencies with 0 decimal places (UGX, TZS, RWF) are not falsy-mistaken
+ * for "missing".
+ */
+const DECIMAL_PLACES: Record<string, number> = {
+  NGN: 2, GHS: 2, KES: 2, USD: 2, EUR: 2, GBP: 2, ZAR: 2,
+  UGX: 0, TZS: 0, RWF: 0,
+  ETB: 2, MWK: 2, EGP: 2, ZMW: 2,
+};
+
+/** Convert a major-unit amount to minor units (e.g. 100 NGN → 10000 kobo). */
+export function toMinorUnits(amount: number, currency: string): number {
+  const decimals = DECIMAL_PLACES[currency] ?? 2;
+  return Math.round(amount * 10 ** decimals);
+}
+
+/** Convert minor units back to major units (e.g. 10000 kobo → 100 NGN). */
+export function fromMinorUnits(amount: number, currency: string): number {
+  const decimals = DECIMAL_PLACES[currency] ?? 2;
+  return amount / 10 ** decimals;
+}
+
+/** Format a major-unit amount with the currency's Intl style. */
+export function formatAmount(amount: number, currency: string): string {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+// ─── Reference & Account Number Generators ───────────────────────────────
+
+// Re-exported for backward compat.
 export { generateReference, generateAccountNumber } from "@/lib/turbopay/reference";

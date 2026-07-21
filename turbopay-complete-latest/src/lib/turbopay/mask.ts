@@ -25,3 +25,19 @@ export function maskEmail(email: string | null): string {
   const [dname, ...rest] = domain.split(".");
   return `${name[0]}***@${dname[0]}***.${rest.join(".")}`;
 }
+
+/** Mask card number: 4111111111111111 -> 411111******1111 */
+export function maskCardNumber(cardNumber: string): string {
+  if (cardNumber.length < 10) return cardNumber;
+  const first6 = cardNumber.slice(0, 6);
+  const last4 = cardNumber.slice(-4);
+  const masked = "*".repeat(cardNumber.length - 10);
+  return `${first6}${masked}${last4}`;
+}
+
+/** Mask account number: show last N visible digits (default 4). */
+export function maskAccountNumber(accountNumber: string, visibleDigits = 4): string {
+  if (accountNumber.length <= visibleDigits) return accountNumber;
+  const masked = "*".repeat(accountNumber.length - visibleDigits);
+  return masked + accountNumber.slice(-visibleDigits);
+}

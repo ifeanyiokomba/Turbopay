@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { generateOtp, hashOtp } from "@/lib/turbopay/crypto";
 import { errorJson, json } from "@/lib/turbopay/api";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
+import { notify } from "@/lib/turbocore/notifications";
+import crypto from "crypto";
 import { z } from "zod";
 
 const schema = z.object({ identifier: z.string().min(3, "Enter your email or phone") });
@@ -16,12 +18,37 @@ export async function POST(req: Request) {
   const user = await db.user.findFirst({ where: { OR: [{ email: id }, { phone: parsed.data.identifier.trim() }] } });
   if (user) {
     const otp = generateOtp();
+    const channel = user.email ? "EMAIL" : "PHONE";
+    const target = (user.email ?? user.phone) as string;
+
     await db.recoveryToken.create({
-      data: { userId: user.id, channel: user.email ? "EMAIL" : "PHONE", target: (user.email ?? user.phone) as string, code: hashOtp(otp), purpose: "RECOVER_USERNAME", expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
+      data: {
+        userId: user.id,
+        channel,
+        target,
+        code: hashOtp(otp),
+        purpose: "RECOVER_USERNAME",
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
     });
+
+    // Send the OTP via the notification provider.
+    try {
+      await notify.send({
+        to: target,
+        channel: channel as "EMAIL" | "SMS",
+        template: "auth.otp",
+        variables: {
+          otp,
+          userName: user.fullName.split(" ")[0],
+        },
+      });
+    } catch (e) {
+      console.error(`[forgot-username] Failed to send OTP to ${target}:`, (e as Error).message);
+    }
+
     if (process.env.NODE_ENV !== "production") {
-      // SECURITY: Never return OTPs or usernames in the response body — even in dev.
-      console.log(`[forgot-username] OTP for ${user.email ?? user.phone}: ${otp} (dev only)`);
+      console.log(`[forgot-username] OTP for ${target}: ${otp} (dev only)`);
     }
   }
   return json({ data: { otpSent: true } });

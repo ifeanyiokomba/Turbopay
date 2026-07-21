@@ -136,7 +136,7 @@ class BulkPaymentServiceImpl {
     }
 
     const reference = generateReference("BULK");
-    const jobId = `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const jobId = generateReference("bulk");
 
     // Create the job record.
     const job = await db.billSwiftBulkJob.create({

@@ -31,13 +31,23 @@ TurboPay is a **consumer-facing fintech web application** (like OPay, PalmPay, K
 - [ ] Create `.env.test` with test database URL
 - [ ] Run `npm test` in `turbopay-complete-latest/` and fix failing tests
 
-### 1.2 Resolve Duplicate Codebases
+### 1.2 Resolve Duplicate Codebases ✅ DONE
 **Problem:** `src/` (standalone SDK) and `turbopay-complete-latest/src/lib/` implement the same domain logic independently.
 
-**Actions:**
-- [ ] Audit overlap: compare `src/services/` with `turbopay-complete-latest/src/lib/turbopay/`
-- [ ] Decision: Either (a) make `src/` a shared package consumed by the Next.js app, or (b) deprecate `src/` and consolidate into the Next.js lib layer
-- [ ] Recommended: Option (b) — the Next.js app is the real product; `src/` was a prototype SDK
+**Decision:** Option (b) — deprecate `src/` and consolidate into the Next.js lib layer.
+
+**Rationale:** TurboCore (Next.js) already has ALL provider adapters (27 vs 13), distributed circuit breaker (Redis-backed), proper interfaces (IVirtualAccountProvider, etc.), webhook framework with signature validation, AML/fraud detection, and production-grade database integration. The SDK is completely redundant.
+
+**Actions completed:**
+- [x] Audit overlap: compared all modules between `src/` and `turbopay-complete-latest/src/lib/turbopay/`
+- [x] Ported missing utilities to Next.js app:
+  - `toMinorUnits`, `fromMinorUnits`, `formatAmount` → `money.ts`
+  - `validateBVN`, `validateNIN`, `validateEmail`, `validatePhoneNumber` → `crypto.ts`
+  - `maskCardNumber`, `maskAccountNumber` → `mask.ts`
+- [x] Marked `src/` as deprecated with `src/DEPRECATED.md`
+- [x] Created migration guide for any code importing from `src/`
+
+**Remaining:** Run existing `src/` tests as regression suite until Next.js test coverage is complete.
 
 ### 1.3 Environment Configuration
 **Problem:** `.env` files contain real secrets, missing `.env.example` for `src/`.
