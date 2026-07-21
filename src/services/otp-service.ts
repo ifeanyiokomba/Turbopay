@@ -184,6 +184,7 @@ export class OTPService {
   private rateLimits: Map<string, number[]> = new Map();
   private config: Required<OTPConfig>;
   private persistence: PersistenceManager | null = null;
+  private emailService: any = null; // EmailService (optional)
 
   constructor(config: OTPConfig) {
     this.config = {
@@ -195,6 +196,10 @@ export class OTPService {
       ...config,
       templates: { ...DEFAULT_TEMPLATES, ...config.templates }
     };
+  }
+
+  setEmailService(emailService: any): void {
+    this.emailService = emailService;
   }
 
   registerPersistence(pm: PersistenceManager): void {
@@ -409,14 +414,21 @@ export class OTPService {
       body = body.replace(regex, value);
     }
 
-    // TODO: Integrate with email provider (SendGrid, AWS SES, etc.)
-    // For now, log the email content
-    console.log(`[OTPService] Email to ${email}:`);
-    console.log(`  Subject: ${subject}`);
-    console.log(`  Body: ${body.substring(0, 100)}...`);
-
-    // Simulate email sending
-    // In production, replace with actual email provider integration
+    // Send via EmailService if available
+    if (this.emailService) {
+      try {
+        await this.emailService.sendOTPEmail(email, code, purpose);
+        console.log(`[OTPService] Email OTP sent to ${email} for ${purpose}`);
+      } catch (error) {
+        console.error(`[OTPService] Failed to send email OTP:`, error);
+        throw error;
+      }
+    } else {
+      // Fallback: log the email content
+      console.log(`[OTPService] Email to ${email}:`);
+      console.log(`  Subject: ${subject}`);
+      console.log(`  Body: ${body.substring(0, 100)}...`);
+    }
   }
 
   // ===========================================================================

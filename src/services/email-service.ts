@@ -246,7 +246,7 @@ export class EmailService {
     });
   }
 
-  async sendAdminInvite(to: string, firstName: string, invitedBy: string, role: string, jobTitle: string): Promise<EmailResult> {
+  async sendAdminInvite(to: string, firstName: string, invitedBy: string, role: string, jobTitle: string, tempPassword?: string): Promise<EmailResult> {
     return this.send({
       to,
       type: 'admin_invite',
@@ -255,7 +255,8 @@ export class EmailService {
         invited_by: invitedBy,
         role,
         job_title: jobTitle,
-        invite_url: `${this.config.frontend_url}/admin/onboard`
+        invite_url: `${this.config.frontend_url}/admin/onboard`,
+        temp_password: tempPassword || ''
       }
     });
   }
@@ -440,12 +441,20 @@ export class EmailService {
         html_body: baseLayout(`
           <h2 style="color:#1a1a2e;margin:0 0 16px;">Admin Invitation</h2>
           <p style="color:#555;line-height:1.6;">Hi {first_name}, you've been invited by {invited_by} to join {brand_name} as a <strong>{role}</strong> ({job_title}).</p>
-          <div style="text-align:center;margin:30px 0;">
-            <a href="{invite_url}" style="background:#6c5ce7;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Accept Invitation</a>
+          <div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="color:#1a1a2e;margin:0 0 8px;font-weight:600;">Your Temporary Password:</p>
+            <p style="color:#6c5ce7;font-size:20px;font-weight:700;margin:0;letter-spacing:2px;">{temp_password}</p>
           </div>
+          <div style="background:#fff3cd;border-radius:8px;padding:16px;margin:20px 0;">
+            <p style="color:#856404;margin:0;font-size:14px;"><strong>Important:</strong> This is a temporary password. You will be required to change it on your first login.</p>
+          </div>
+          <div style="text-align:center;margin:30px 0;">
+            <a href="{invite_url}" style="background:#6c5ce7;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Accept Invitation & Login</a>
+          </div>
+          <p style="color:#999;font-size:13px;">If you didn't expect this invitation, please ignore this email.</p>
         `),
-        text_body: 'You\'re invited to join {brand_name} as {role} ({job_title}). Accept at {invite_url}',
-        variables: ['first_name', 'invited_by', 'role', 'job_title', 'invite_url'],
+        text_body: 'You\'re invited to join {brand_name} as {role} ({job_title}).\n\nYour temporary password: {temp_password}\n\nYou must change this password on first login.\n\nAccept at {invite_url}',
+        variables: ['first_name', 'invited_by', 'role', 'job_title', 'invite_url', 'temp_password'],
         is_active: true
       },
       {

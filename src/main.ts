@@ -230,6 +230,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   // Wire email service into auth services for invite/password reset emails
   adminAuth.setEmailService(emailService);
   customerAuth.setEmailService(emailService);
+  otp.setEmailService(emailService);
 
   const unifiedBills = new UnifiedBillsService(selectionEngine, registry, ledger);
 

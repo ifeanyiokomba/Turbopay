@@ -269,7 +269,8 @@ export class AdminAuthService {
           user.first_name,
           inviterName,
           params.role,
-          params.job_title
+          params.job_title,
+          tempPassword
         );
         console.log(`[AuthService] Admin invite email sent to ${user.email}`);
       } catch (error) {
