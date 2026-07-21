@@ -129,18 +129,31 @@ export class EmailService {
     const logId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     try {
-      // TODO: Replace with actual Resend API call
-      // const resend = new Resend(this.config.api_key);
-      // const result = await resend.emails.send({
-      //   from: `${this.config.from_name} <${this.config.from_email}>`,
-      //   to: [request.to],
-      //   subject,
-      //   html: htmlBody,
-      //   text: textBody,
-      //   reply_to: request.reply_to || this.config.reply_to
-      // });
-
-      console.log(`[EmailService] SENT → ${request.to} | Type: ${request.type} | Subject: ${subject}`);
+      // Send email via Resend API if API key is configured
+      if (this.config.api_key) {
+        try {
+          // Dynamic require to avoid TypeScript module resolution issues
+          // Resend is an optional dependency — gracefully degrade if not installed
+          const resend = new (require('resend').Resend)(this.config.api_key);
+          await resend.emails.send({
+            from: `${this.config.from_name} <${this.config.from_email}>`,
+            to: [request.to],
+            subject,
+            html: htmlBody,
+            text: textBody,
+            reply_to: request.reply_to || this.config.reply_to
+          });
+          console.log(`[EmailService] SENT → ${request.to} | Type: ${request.type} | Subject: ${subject}`);
+        } catch (importError) {
+          // Resend package not installed — fall back to stub
+          console.log(`[EmailService] (STUB - resend not installed) SENT → ${request.to} | Type: ${request.type} | Subject: ${subject}`);
+          console.log(`[EmailService] Install 'resend' package to enable actual email delivery`);
+        }
+      } else {
+        // Graceful degradation: log to console when no API key configured
+        console.log(`[EmailService] (STUB) SENT → ${request.to} | Type: ${request.type} | Subject: ${subject}`);
+        console.log(`[EmailService] Configure RESEND_API_KEY to enable actual email delivery`);
+      }
 
       this.sendLog.push({
         id: logId,

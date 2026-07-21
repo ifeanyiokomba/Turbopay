@@ -4,17 +4,20 @@
 import crypto from 'crypto';
 import { hashPassword as hashWithScrypt, verifyPassword as verifyWithScrypt } from '../../utils/crypto';
 import { PersistenceManager } from '../../utils/persistence';
+import { AdminRole, getPermissionsForRole, hasPermission as rbacHasPermission } from '../../rbac';
 
 // =============================================================================
 // TYPES
 // =============================================================================
+
+export type UserRole = AdminRole | 'master_admin' | 'admin' | 'staff';
 
 export interface AdminUser {
   id: string;
   email: string;
   password_hash: string;
   salt: string;
-  role: 'master_admin' | 'admin' | 'staff';
+  role: UserRole;
   first_name: string;
   last_name: string;
   phone?: string;
@@ -27,12 +30,16 @@ export interface AdminUser {
   reports_to?: string;
   is_active: boolean;
   is_email_verified: boolean;
+  requires_password_change?: boolean;
   last_login: Date | null;
   created_at: Date;
   updated_at: Date;
   created_by: string | null;
   password_reset_token: string | null;
   password_reset_expires: Date | null;
+  // Account lockout fields
+  failed_login_attempts: number;
+  locked_until: Date | null;
 }
 
 export interface LoginRequest {
@@ -73,14 +80,16 @@ export class AdminAuthService {
   private readonly SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
   private readonly PASSWORD_RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
   private persistence: PersistenceManager | null = null;
+  private emailService: any = null; // EmailService (optional to avoid circular deps)
   public ready: Promise<void>;
 
-  constructor() {
+  constructor(emailService?: any) {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       throw new Error('[AuthService] JWT_SECRET environment variable is required');
     }
     this.JWT_SECRET = jwtSecret;
+    this.emailService = emailService || null;
 
     // Initialize master admin from environment variables if configured
     const adminEmail = process.env.MASTER_ADMIN_EMAIL;
@@ -92,6 +101,13 @@ export class AdminAuthService {
     } else {
       this.ready = Promise.resolve();
     }
+  }
+
+  /**
+   * Set the email service (for dependency injection after construction).
+   */
+  setEmailService(emailService: any): void {
+    this.emailService = emailService;
   }
 
   // ===========================================================================
@@ -128,7 +144,7 @@ export class AdminAuthService {
     password: string;
     first_name: string;
     last_name: string;
-    role: 'master_admin' | 'admin' | 'staff';
+    role: UserRole;
     created_by: string | null;
     phone?: string;
     department?: string;
@@ -137,6 +153,7 @@ export class AdminAuthService {
     permissions?: string[];
     reports_to?: string;
     onboarding_status?: 'pending' | 'invited' | 'onboarded' | 'active';
+    requires_password_change?: boolean;
   }): Promise<AdminUser> {
     // Check if user already exists
     const existingUser = this.findUserByEmail(params.email);
@@ -170,7 +187,9 @@ export class AdminAuthService {
       updated_at: new Date(),
       created_by: params.created_by,
       password_reset_token: null,
-      password_reset_expires: null
+      password_reset_expires: null,
+      failed_login_attempts: 0,
+      locked_until: null
     };
 
     this.users.set(user.id, user);
@@ -215,42 +234,66 @@ export class AdminAuthService {
   // ===========================================================================
 
   /**
-   * Invite a new admin — creates account with pending onboarding status
+   * Invite a new admin — creates account with pending onboarding status.
+   * Returns the admin user AND the temporary password (so the caller can display or email it).
    */
   async inviteAdmin(params: {
     email: string;
     first_name: string;
     last_name: string;
-    role: 'admin' | 'staff';
+    role: UserRole;
     department: string;
     job_title: string;
     job_description: string;
     permissions?: string[];
     reports_to?: string;
     created_by: string;
-  }): Promise<AdminUser> {
+  }): Promise<{ user: AdminUser; tempPassword: string }> {
     // Generate a temporary password — user will set their own during onboarding
     const tempPassword = crypto.randomBytes(12).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 16) + '!1';
 
     const user = await this.createUser({
       ...params,
       password: tempPassword,
-      onboarding_status: 'invited'
+      onboarding_status: 'invited',
+      requires_password_change: true
     });
 
+    // Send admin invite email if email service is available
+    if (this.emailService) {
+      try {
+        const inviterUser = this.findUserById(params.created_by);
+        const inviterName = inviterUser ? `${inviterUser.first_name} ${inviterUser.last_name}` : 'TurboPay Admin';
+        await this.emailService.sendAdminInvite(
+          user.email,
+          user.first_name,
+          inviterName,
+          params.role,
+          params.job_title
+        );
+        console.log(`[AuthService] Admin invite email sent to ${user.email}`);
+      } catch (error) {
+        console.error(`[AuthService] Failed to send admin invite email:`, error);
+      }
+    }
+
     console.log(`[AuthService] Admin invited: ${user.email} as ${params.job_title} (${params.department})`);
-    return user;
+    return { user, tempPassword };
   }
 
   /**
-   * Complete onboarding — user sets their password and finishes setup
+   * Complete onboarding — user sets their password and finishes setup.
+   * Properly hashes and stores the new password.
    */
-  completeOnboarding(userId: string, newPassword: string): AdminUser | null {
+  async completeOnboarding(userId: string, newPassword: string): Promise<AdminUser | null> {
     const user = this.users.get(userId);
     if (!user) return null;
 
-    // This would normally be async (hashing), but we call it synchronously for simplicity
-    // In practice, the password hashing happens in the login flow
+    // Hash and set the new password
+    const salt = crypto.randomBytes(16).toString('hex');
+    user.password_hash = await this.hashPassword(newPassword, salt);
+    user.salt = salt;
+    user.requires_password_change = false;
     user.onboarding_status = 'active';
     user.onboarding_completed_at = new Date();
     user.updated_at = new Date();
@@ -278,13 +321,41 @@ export class AdminAuthService {
   }
 
   /**
-   * Check if user has a specific permission
+   * Check if user has a specific permission.
+   * Uses the RBAC system for role-based permissions, combined with any
+   * explicit permissions stored on the user record.
    */
   hasPermission(userId: string, permission: string): boolean {
     const user = this.users.get(userId);
     if (!user) return false;
-    if (user.role === 'master_admin') return true;
+
+    // Master admin and SUPER_ADMIN have all permissions
+    if (user.role === 'master_admin' || user.role === 'SUPER_ADMIN') return true;
+
+    // Check role-based permissions via RBAC system
+    const rolePermissions = getPermissionsForRole(user.role as AdminRole);
+    if (rolePermissions.includes(permission)) return true;
+
+    // Check explicit permissions on user record
     return user.permissions.includes(permission);
+  }
+
+  /**
+   * Get all permissions for a user (role-based + explicit).
+   */
+  getUserPermissions(userId: string): string[] {
+    const user = this.users.get(userId);
+    if (!user) return [];
+
+    if (user.role === 'master_admin' || user.role === 'SUPER_ADMIN') {
+      // Return a marker that indicates all permissions
+      return ['*'];
+    }
+
+    const rolePermissions = getPermissionsForRole(user.role as AdminRole);
+    const explicitPermissions = user.permissions || [];
+    const combined = new Set([...rolePermissions, ...explicitPermissions]);
+    return Array.from(combined);
   }
 
   // ===========================================================================
@@ -302,12 +373,38 @@ export class AdminAuthService {
       return { success: false, error: 'Account is disabled' };
     }
 
+    // Check account lockout
+    const LOCKOUT_THRESHOLD = 5; // Failed attempts before lockout
+    const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+
+    if (user.locked_until && user.locked_until > new Date()) {
+      const minutesLeft = Math.ceil((user.locked_until.getTime() - Date.now()) / 60000);
+      return { success: false, error: `Account is locked. Try again in ${minutesLeft} minutes` };
+    }
+
+    // If lockout expired, reset attempts
+    if (user.locked_until && user.locked_until <= new Date()) {
+      user.failed_login_attempts = 0;
+      user.locked_until = null;
+    }
+
     const passwordValid = await this.verifyPassword(request.password, user.salt, user.password_hash);
     if (!passwordValid) {
+      // Track failed attempt
+      user.failed_login_attempts = (user.failed_login_attempts || 0) + 1;
+      if (user.failed_login_attempts >= LOCKOUT_THRESHOLD) {
+        user.locked_until = new Date(Date.now() + LOCKOUT_DURATION);
+        console.log(`[AuthService] Account locked for ${user.email} after ${user.failed_login_attempts} failed attempts`);
+      }
+      user.updated_at = new Date();
+      this.users.set(user.id, user);
+      this.dirtyUsers();
       return { success: false, error: 'Invalid email or password' };
     }
 
-    // Update last login
+    // Successful login — reset failed attempts
+    user.failed_login_attempts = 0;
+    user.locked_until = null;
     user.last_login = new Date();
     user.updated_at = new Date();
     this.users.set(user.id, user);
@@ -362,13 +459,27 @@ export class AdminAuthService {
     this.users.set(user.id, user);
     this.dirtyUsers();
 
-    // In production, send email here
-    // SECURITY: Never log password reset tokens — they are secrets
-    console.log(`[AuthService] Password reset requested for ${email}`);
+    // Send password reset email if email service is available
+    if (this.emailService) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const resetUrl = `${frontendUrl}/admin/reset-password?token=${resetToken}`;
+      try {
+        await this.emailService.sendPasswordResetEmail(
+          user.email,
+          user.first_name,
+          resetUrl
+        );
+        console.log(`[AuthService] Password reset email sent to ${email}`);
+      } catch (error) {
+        console.error(`[AuthService] Failed to send password reset email:`, error);
+      }
+    } else {
+      console.log(`[AuthService] Password reset requested for ${email} (email service not configured)`);
+    }
 
-    return { 
-      success: true, 
-      message: 'If an account exists with this email, you will receive a password reset link.' 
+    return {
+      success: true,
+      message: 'If an account exists with this email, you will receive a password reset link.'
     };
   }
 

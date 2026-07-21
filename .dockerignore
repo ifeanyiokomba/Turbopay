@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Build output
+dist/
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.test
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+src/__tests__/
+*.test.ts
+*.spec.ts
+
+# Data directories
+data/
+data-test/
+
+# TurboPay complete app (separate deployment)
+turbopay-complete-latest/
+
+# Research and audit files
+research/
+*.txt
+*.pdf
+audit*.md
+plan*.md
+PROVIDER_*.md
+UNIFIED_*.md
+
+# Misc
+.turbo/
+coverage/
+jest.config.js
+tsconfig.json
+render.yaml

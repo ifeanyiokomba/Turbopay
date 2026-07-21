@@ -34,6 +34,9 @@ export interface CustomerUser {
   metadata?: Record<string, any>;
   password_reset_token: string | null;
   password_reset_expires: Date | null;
+  // Account lockout fields
+  failed_login_attempts: number;
+  locked_until: Date | null;
 }
 
 export interface CustomerRegistrationRequest {
@@ -80,6 +83,14 @@ export class CustomerAuthService {
   private readonly SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
   private readonly PASSWORD_RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
   private persistence: PersistenceManager | null = null;
+  private emailService: any = null; // EmailService (optional)
+
+  /**
+   * Set the email service (for dependency injection after construction).
+   */
+  setEmailService(emailService: any): void {
+    this.emailService = emailService;
+  }
 
   registerPersistence(pm: PersistenceManager): void {
     this.persistence = pm;
@@ -127,7 +138,9 @@ export class CustomerAuthService {
       created_at: new Date(),
       updated_at: new Date(),
       password_reset_token: null,
-      password_reset_expires: null
+      password_reset_expires: null,
+      failed_login_attempts: 0,
+      locked_until: null
     };
 
     this.users.set(user.id, user);
@@ -150,12 +163,38 @@ export class CustomerAuthService {
       return { success: false, error: 'Account is disabled' };
     }
 
+    // Check account lockout
+    const LOCKOUT_THRESHOLD = 5; // Failed attempts before lockout
+    const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+
+    if (user.locked_until && user.locked_until > new Date()) {
+      const minutesLeft = Math.ceil((user.locked_until.getTime() - Date.now()) / 60000);
+      return { success: false, error: `Account is locked. Try again in ${minutesLeft} minutes` };
+    }
+
+    // If lockout expired, reset attempts
+    if (user.locked_until && user.locked_until <= new Date()) {
+      user.failed_login_attempts = 0;
+      user.locked_until = null;
+    }
+
     const passwordValid = await this.verifyPassword(request.password, user.salt, user.password_hash);
     if (!passwordValid) {
+      // Track failed attempt
+      user.failed_login_attempts = (user.failed_login_attempts || 0) + 1;
+      if (user.failed_login_attempts >= LOCKOUT_THRESHOLD) {
+        user.locked_until = new Date(Date.now() + LOCKOUT_DURATION);
+        console.log(`[CustomerAuth] Account locked for ${user.email} after ${user.failed_login_attempts} failed attempts`);
+      }
+      user.updated_at = new Date();
+      this.users.set(user.id, user);
+      this.dirtyUsers();
       return { success: false, error: 'Invalid email or password' };
     }
 
-    // Update last login
+    // Successful login — reset failed attempts
+    user.failed_login_attempts = 0;
+    user.locked_until = null;
     user.last_login = new Date();
     user.updated_at = new Date();
     this.users.set(user.id, user);
@@ -182,7 +221,7 @@ export class CustomerAuthService {
 
     if (session.expires_at < new Date()) {
       this.sessions.delete(token);
-    this.dirtySessions();
+      this.dirtySessions();
       return null;
     }
 
@@ -399,8 +438,23 @@ export class CustomerAuthService {
     this.users.set(user.id, user);
     this.dirtyUsers();
 
-    // SECURITY: Never log password reset tokens — they are secrets
-    console.log(`[CustomerAuth] Password reset requested for ${email}`);
+    // Send password reset email if email service is available
+    if (this.emailService) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+      try {
+        await this.emailService.sendPasswordResetEmail(
+          user.email,
+          user.first_name,
+          resetUrl
+        );
+        console.log(`[CustomerAuth] Password reset email sent to ${email}`);
+      } catch (error) {
+        console.error(`[CustomerAuth] Failed to send password reset email:`, error);
+      }
+    } else {
+      console.log(`[CustomerAuth] Password reset requested for ${email} (email service not configured)`);
+    }
 
     return {
       success: true,

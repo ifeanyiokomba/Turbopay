@@ -40,6 +40,19 @@ export type WebhookEventType =
   | 'chargeback.success'
   | 'settlement.success'
   | 'settlement.pending'
+  // Mobile Money specific events
+  | 'mobile_money.collection.success'
+  | 'mobile_money.collection.failed'
+  | 'mobile_money.collection.pending'
+  | 'mobile_money.disbursement.success'
+  | 'mobile_money.disbursement.failed'
+  | 'mobile_money.disbursement.pending'
+  | 'mobile_money.airtime.success'
+  | 'mobile_money.airtime.failed'
+  | 'mobile_money.data.success'
+  | 'mobile_money.data.failed'
+  | 'mobile_money.bill_payment.success'
+  | 'mobile_money.bill_payment.failed'
   | 'unknown';
 
 // =============================================================================
@@ -322,6 +335,51 @@ export class WebhookHandler {
    */
   getProcessedEventsCount(): number {
     return this.processedEvents.size;
+  }
+
+  /**
+   * Check if a provider is a mobile money provider
+   */
+  isMobileMoneyProvider(provider: ProviderName): boolean {
+    const mobileMoneyProviders: ProviderName[] = ['smartcash', 'airtel_money', 'mtn_momo', 'mpesa', 'paga'];
+    return mobileMoneyProviders.includes(provider);
+  }
+
+  /**
+   * Map a provider event to a mobile money event type
+   */
+  mapToMobileMoneyEvent(provider: ProviderName, originalEvent: string, status: string): WebhookEventType {
+    if (status === 'success' || status === 'successful' || status === 'completed') {
+      if (originalEvent.includes('collection') || originalEvent.includes('payment')) {
+        return 'mobile_money.collection.success';
+      }
+      if (originalEvent.includes('disbursement') || originalEvent.includes('transfer')) {
+        return 'mobile_money.disbursement.success';
+      }
+      if (originalEvent.includes('airtime')) {
+        return 'mobile_money.airtime.success';
+      }
+      if (originalEvent.includes('data')) {
+        return 'mobile_money.data.success';
+      }
+      if (originalEvent.includes('bill')) {
+        return 'mobile_money.bill_payment.success';
+      }
+      return 'payment.success';
+    }
+    if (status === 'failed' || status === 'error' || status === 'rejected') {
+      if (originalEvent.includes('collection') || originalEvent.includes('payment')) {
+        return 'mobile_money.collection.failed';
+      }
+      if (originalEvent.includes('disbursement') || originalEvent.includes('transfer')) {
+        return 'mobile_money.disbursement.failed';
+      }
+      return 'payment.failed';
+    }
+    if (status === 'pending' || status === 'processing') {
+      return 'mobile_money.collection.pending';
+    }
+    return 'unknown';
   }
 
   /**

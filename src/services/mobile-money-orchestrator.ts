@@ -149,70 +149,70 @@ export class MobileMoneyOrchestrator {
       code: 'NG',
       name: 'Nigeria',
       currencies: ['NGN'],
-      providers: ['paystack', 'flutterwave', 'monnify'],
-      supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'airtime', 'data', 'bill_payment', 'transaction_status', 'balance_inquiry', 'refund']
+      providers: ['smartcash', 'paga', 'mtn_momo', 'paystack', 'flutterwave', 'monnify'],
+      supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'bill_payment', 'transaction_status', 'balance_inquiry', 'refund']
     },
     {
       code: 'GH',
       name: 'Ghana',
       currencies: ['GHS'],
-      providers: ['flutterwave', 'onafriq'],
+      providers: ['mtn_momo', 'airtel_money', 'flutterwave', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry', 'refund']
     },
     {
       code: 'KE',
       name: 'Kenya',
       currencies: ['KES'],
-      providers: ['flutterwave', 'onafriq'],
+      providers: ['mpesa', 'airtel_money', 'flutterwave', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry', 'refund']
     },
     {
       code: 'TZ',
       name: 'Tanzania',
       currencies: ['TZS'],
-      providers: ['onafriq'],
+      providers: ['airtel_money', 'mtn_momo', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry']
     },
     {
       code: 'UG',
       name: 'Uganda',
       currencies: ['UGX'],
-      providers: ['onafriq'],
+      providers: ['mtn_momo', 'airtel_money', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry']
     },
     {
       code: 'ZA',
       name: 'South Africa',
       currencies: ['ZAR'],
-      providers: ['paystack', 'flutterwave', 'onafriq'],
+      providers: ['mtn_momo', 'paystack', 'flutterwave', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'airtime', 'data', 'transaction_status', 'balance_inquiry', 'refund']
     },
     {
       code: 'CI',
       name: 'Ivory Coast',
       currencies: ['XOF'],
-      providers: ['flutterwave', 'onafriq'],
+      providers: ['mtn_momo', 'airtel_money', 'flutterwave', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry']
     },
     {
       code: 'SN',
       name: 'Senegal',
       currencies: ['XOF'],
-      providers: ['onafriq'],
+      providers: ['airtel_money', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry']
     },
     {
       code: 'CM',
       name: 'Cameroon',
       currencies: ['XAF'],
-      providers: ['onafriq'],
+      providers: ['mtn_momo', 'airtel_money', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry']
     },
     {
       code: 'RW',
       name: 'Rwanda',
       currencies: ['RWF'],
-      providers: ['onafriq'],
+      providers: ['mtn_momo', 'airtel_money', 'onafriq'],
       supported_operations: ['collection', 'disbursement', 'wallet_transfer', 'merchant_payment', 'airtime', 'data', 'transaction_status', 'balance_inquiry']
     },
   ];

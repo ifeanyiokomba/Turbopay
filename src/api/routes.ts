@@ -149,6 +149,8 @@ export class TurboPayRoutes {
       ...this.emailRoutes(),
       // UNIFIED BILLS
       ...this.unifiedBillsRoutes(),
+      // PAYMENT LINKS
+      ...this.paymentLinkRoutes(),
     ];
   }
 
@@ -1962,6 +1964,152 @@ export class TurboPayRoutes {
           } catch (error) {
             res.status(400).json({ success: false, error: (error as Error).message });
           }
+        }
+      },
+    ];
+  }
+
+  // ===========================================================================
+  // PAYMENT LINKS ROUTES
+  // ===========================================================================
+
+  private paymentLinkRoutes(): Route[] {
+    return [
+      // Merchant routes (authenticated)
+      {
+        method: 'POST',
+        path: '/api/v1/payment-links',
+        description: 'Create a payment link',
+        auth: 'customer',
+        requiredBodyFields: ['title', 'type', 'currency'],
+        handler: async (req, res) => {
+          try {
+            const link = (this as any).paymentLinks?.createLink({
+              ...req.body,
+              merchant_id: req.user?.id
+            });
+            if (!link) {
+              res.status(400).json({ success: false, error: 'Failed to create payment link' });
+              return;
+            }
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            res.json({
+              success: true,
+              link,
+              checkout_url: `${frontendUrl}/pay/${link.id}`,
+              shareable_url: `${frontendUrl}/pay/${link.id}`
+            });
+          } catch (error) {
+            res.status(400).json({ success: false, error: (error as Error).message });
+          }
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/payment-links',
+        description: 'List merchant payment links',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const links = (this as any).paymentLinks?.getMerchantLinks(req.user?.id) || [];
+          res.json({ success: true, links });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/payment-links/:id',
+        description: 'Get payment link details',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const link = (this as any).paymentLinks?.getLink(req.params.id);
+          if (!link || link.merchant_id !== req.user?.id) {
+            res.status(404).json({ success: false, error: 'Not found' });
+            return;
+          }
+          res.json({ success: true, link });
+        }
+      },
+      {
+        method: 'PUT',
+        path: '/api/v1/payment-links/:id',
+        description: 'Update payment link',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const link = (this as any).paymentLinks?.getLink(req.params.id);
+          if (!link || link.merchant_id !== req.user?.id) {
+            res.status(404).json({ success: false, error: 'Not found' });
+            return;
+          }
+          const updated = (this as any).paymentLinks?.updateLink(req.params.id, req.body);
+          res.json({ success: true, link: updated });
+        }
+      },
+      {
+        method: 'DELETE',
+        path: '/api/v1/payment-links/:id',
+        description: 'Archive payment link',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const link = (this as any).paymentLinks?.getLink(req.params.id);
+          if (!link || link.merchant_id !== req.user?.id) {
+            res.status(404).json({ success: false, error: 'Not found' });
+            return;
+          }
+          const archived = (this as any).paymentLinks?.archiveLink(req.params.id);
+          res.json({ success: archived });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/payment-links/:id/transactions',
+        description: 'Get link transactions',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const link = (this as any).paymentLinks?.getLink(req.params.id);
+          if (!link || link.merchant_id !== req.user?.id) {
+            res.status(404).json({ success: false, error: 'Not found' });
+            return;
+          }
+          const transactions = (this as any).paymentLinks?.getLinkTransactions(req.params.id) || [];
+          res.json({ success: true, transactions });
+        }
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/payment-links/:id/analytics',
+        description: 'Get link analytics',
+        auth: 'customer',
+        handler: async (req, res) => {
+          const link = (this as any).paymentLinks?.getLink(req.params.id);
+          if (!link || link.merchant_id !== req.user?.id) {
+            res.status(404).json({ success: false, error: 'Not found' });
+            return;
+          }
+          const analytics = (this as any).paymentLinks?.getLinkAnalytics(req.params.id);
+          res.json({ success: true, analytics });
+        }
+      },
+
+      // Public routes (no auth — customer checkout)
+      {
+        method: 'GET',
+        path: '/api/v1/pay/:slug',
+        description: 'Get payment link data (public)',
+        handler: async (req, res) => {
+          const data = (this as any).paymentLinks?.getPublicLinkData(req.params.slug);
+          if (!data) {
+            res.status(404).json({ success: false, error: 'Payment link not found or inactive' });
+            return;
+          }
+          res.json({ success: true, ...data });
+        }
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/pay/:slug/validate',
+        description: 'Validate payment data',
+        handler: async (req, res) => {
+          const result = (this as any).paymentLinks?.validatePayment(req.params.slug, req.body);
+          res.json(result);
         }
       },
     ];

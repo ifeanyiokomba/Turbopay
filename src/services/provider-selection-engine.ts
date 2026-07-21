@@ -83,11 +83,26 @@ export class ProviderSelectionEngine {
   };
 
   private readonly DEFAULT_COUNTRY_PREFERENCES: CountryPreference[] = [
-    { country: 'NG', primary: 'paystack', secondary: 'flutterwave', tertiary: 'monnify' },
-    { country: 'GH', primary: 'flutterwave', secondary: 'paystack', tertiary: 'onafriq' },
-    { country: 'KE', primary: 'flutterwave', secondary: 'paystack', tertiary: 'quickteller' },
-    { country: 'ZA', primary: 'paystack', secondary: 'flutterwave', tertiary: 'onafriq' },
-    { country: 'CI', primary: 'flutterwave', secondary: 'paystack', tertiary: 'onafriq' },
+    // Nigeria — Smart Cash for mobile money, Paystack/Flutterwave for card/bank
+    { country: 'NG', primary: 'paystack', secondary: 'smartcash', tertiary: 'flutterwave' },
+    // Ghana — MTN MoMo dominant for mobile money
+    { country: 'GH', primary: 'mtn_momo', secondary: 'flutterwave', tertiary: 'airtel_money' },
+    // Kenya — M-Pesa dominant for mobile money
+    { country: 'KE', primary: 'mpesa', secondary: 'airtel_money', tertiary: 'flutterwave' },
+    // Tanzania — Airtel Money and MTN MoMo
+    { country: 'TZ', primary: 'airtel_money', secondary: 'mtn_momo', tertiary: 'onafriq' },
+    // Uganda — MTN MoMo and Airtel Money
+    { country: 'UG', primary: 'mtn_momo', secondary: 'airtel_money', tertiary: 'onafriq' },
+    // South Africa — MTN MoMo + card processors
+    { country: 'ZA', primary: 'paystack', secondary: 'mtn_momo', tertiary: 'flutterwave' },
+    // Ivory Coast — MTN MoMo + Airtel Money
+    { country: 'CI', primary: 'mtn_momo', secondary: 'airtel_money', tertiary: 'flutterwave' },
+    // Senegal — Airtel Money
+    { country: 'SN', primary: 'airtel_money', secondary: 'onafriq', tertiary: 'flutterwave' },
+    // Cameroon — MTN MoMo dominant
+    { country: 'CM', primary: 'mtn_momo', secondary: 'airtel_money', tertiary: 'onafriq' },
+    // Rwanda — MTN MoMo and Airtel Money
+    { country: 'RW', primary: 'mtn_momo', secondary: 'airtel_money', tertiary: 'onafriq' },
   ];
 
   private readonly DEFAULT_FEES: ProviderFeeData[] = [

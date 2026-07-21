@@ -132,6 +132,7 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
   // 2. AUTH SERVICES
   // ===========================================================================
 
+  // Email service is created later, so we'll wire it in after
   const adminAuth = new AdminAuthService();
   const customerAuth = new CustomerAuthService();
 
@@ -225,6 +226,10 @@ export function createTurboPay(config: TurboPayConfig): TurboPayInstance {
     frontend_url: process.env.FRONTEND_URL || `http://${config.host}:${config.port}`
   });
   emailService.registerPersistence(persistence);
+
+  // Wire email service into auth services for invite/password reset emails
+  adminAuth.setEmailService(emailService);
+  customerAuth.setEmailService(emailService);
 
   const unifiedBills = new UnifiedBillsService(selectionEngine, registry, ledger);
 

@@ -359,7 +359,7 @@ export function toMinorUnits(amount: number, currency: string): number {
     ZMW: 2
   };
   
-  const decimals = decimalPlaces[currency] || 2;
+  const decimals = decimalPlaces[currency] ?? 2;
   return Math.round(amount * Math.pow(10, decimals));
 }
 
@@ -384,6 +384,6 @@ export function fromMinorUnits(amount: number, currency: string): number {
     ZMW: 2
   };
   
-  const decimals = decimalPlaces[currency] || 2;
+  const decimals = decimalPlaces[currency] ?? 2;
   return amount / Math.pow(10, decimals);
 }

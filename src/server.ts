@@ -2,6 +2,31 @@
 // HTTP/HTTPS server that serves the API routes
 // This is the file you run to start TurboPay
 
+// Load .env file before anything else
+import * as fs from 'fs';
+import * as path from 'path';
+
+function loadEnv(): void {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) continue;
+      const key = trimmed.substring(0, eqIndex).trim();
+      const value = trimmed.substring(eqIndex + 1).trim();
+      if (!process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+    console.log('[Server] Loaded environment from .env');
+  }
+}
+
+loadEnv();
+
 import { createTurboPay, TurboPayConfig } from './main';
 
 // =============================================================================
@@ -152,6 +177,11 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
 
   // Request handler — shared by HTTP and HTTPS
   async function handleRequest(req: any, res: any): Promise<void> {
+    // Generate unique request ID for audit trail
+    const requestId = `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+    req.requestId = requestId;
+    res.setHeader('X-Request-ID', requestId);
+
     const parsedUrl = url.parse(req.url, true);
     const path = parsedUrl.pathname;
     const method = req.method;
