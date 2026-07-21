@@ -55,5 +55,4 @@ UNIFIED_*.md
 .turbo/
 coverage/
 jest.config.js
-tsconfig.json
 render.yaml
