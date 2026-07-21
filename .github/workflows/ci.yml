@@ -154,12 +154,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Trigger Render Deploy
-        if: ${{ secrets.RENDER_API_KEY != '' }}
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |
-          echo "Triggering Render deploy for staging..."
-          curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json" || echo "Render deploy skipped (not configured)"
+          if [ -n "$RENDER_API_KEY" ]; then
+            echo "Triggering Render deploy for staging..."
+            curl -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json"
+          else
+            echo "Render deploy skipped (RENDER_API_KEY not configured)"
+          fi
 
   # =========================================================================
   # Deploy to Production
@@ -176,12 +182,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Trigger Render Deploy
-        if: ${{ secrets.RENDER_API_KEY != '' }}
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_PRODUCTION_SERVICE_ID: ${{ secrets.RENDER_PRODUCTION_SERVICE_ID }}
         run: |
-          echo "Triggering Render deploy for production..."
-          curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_PRODUCTION_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json" || echo "Render deploy skipped (not configured)"
+          if [ -n "$RENDER_API_KEY" ]; then
+            echo "Triggering Render deploy for production..."
+            curl -X POST "https://api.render.com/v1/services/$RENDER_PRODUCTION_SERVICE_ID/deploys" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json"
+          else
+            echo "Render deploy skipped (RENDER_API_KEY not configured)"
+          fi
 
   # =========================================================================
   # Notify
