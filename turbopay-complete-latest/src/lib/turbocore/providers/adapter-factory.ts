@@ -91,7 +91,7 @@ class AdapterFactory {
           return new ResendNotificationProvider({
             apiKey: creds.apiKey ?? "",
             baseUrl: creds.baseUrl ?? "https://api.resend.com",
-            fromEmail: creds.fromEmail ?? "Turbopay <noreply@turbopay.ng>",
+            fromEmail: creds.fromEmail ?? "TurboPay <noreply@turbopay.okomba.com>",
           });
         }
         if (pc.providerName === "gmail-smtp") {

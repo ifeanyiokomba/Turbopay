@@ -64,10 +64,12 @@ export class OtpDevNotificationProvider implements INotificationProvider {
     }
 
     const data = await res.json() as any;
+    // GetOTP returns { data: { message_id: "..." } } (nested)
+    const messageId = data?.data?.message_id ?? data?.message_id;
     return {
       ok: true as const,
-      data: { delivered: true, messageId: data.message_id },
-      providerRef: data.message_id,
+      data: { delivered: true, messageId },
+      providerRef: messageId,
     };
   }
 }

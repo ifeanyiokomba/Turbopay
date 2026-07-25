@@ -3,6 +3,7 @@ import { errorJson, json } from "@/lib/turbopay/api";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { generateOtp, hashOtp } from "@/lib/turbopay/crypto";
 import { sendSmsOtp } from "@/lib/turbocore/otpdev";
+import { notify } from "@/lib/turbocore/notifications";
 import { decryptPii } from "@/lib/turbopay/crypto";
 import { normalizePhone } from "@/lib/turbocore/config/country-currency";
 import { z } from "zod";
@@ -62,10 +63,20 @@ export async function POST(req: Request) {
       }
     }
     
-    // Fallback to local OTP
+    // Fallback to local OTP + send via notification providers
     const code = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await db.otpCode.create({ data: { userId: user.id, channel: "PHONE", target: phone, code: hashOtp(code), purpose: "PHONE_VERIFY", expiresAt } });
+    
+    // Send OTP via configured notification providers (Termii SMS, etc.)
+    await notify.send({
+      to: phone,
+      channel: "SMS",
+      template: "auth.otp",
+      variables: { otp: code, userName: user.fullName?.split(" ")[0] || "User" },
+      userId: user.id,
+    }).catch(() => null);
+    
     if (process.env.NODE_ENV !== "production") {
       console.log(`[verify-phone] OTP for ${phone}: ${code} (dev only)`);
     }

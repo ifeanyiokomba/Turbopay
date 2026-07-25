@@ -45,7 +45,7 @@ export class TermiiNotificationProvider implements INotificationProvider {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${this.resendApiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: "Turbopay <noreply@turbopay.ng>", to: [payload.to], subject, text: message }),
+      body: JSON.stringify({ from: "TurboPay <noreply@turbopay.okomba.com>", to: [payload.to], subject, text: message }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return { ok: false as const, error: { code: "RESEND_ERROR", message: `HTTP ${res.status}` } };
