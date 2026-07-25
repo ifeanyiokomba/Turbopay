@@ -146,7 +146,8 @@ class FxEngine {
       throw new FxError("AMOUNT_ABOVE_MAX", `Amount above maximum ${config.maxAmountMinor}`);
     }
     const snapshot = await this.getOrRefreshSnapshot(pair, opts?.ctx);
-    const rawRate = snapshot.rate;
+    // snapshot.rate is a Prisma Decimal — convert to number for arithmetic.
+    const rawRate = Number(snapshot.rate);
     // Customer receives a slightly worse rate than mid-market: rate * (1 - spread).
     const quotedRate = rawRate * (1 - config.spreadBps / 10_000);
     const destinationAmountMinor = Math.round(amountMinor * quotedRate);
