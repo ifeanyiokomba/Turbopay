@@ -81,7 +81,7 @@ export function DashboardView() {
   const user = useApp((s) => s.user) as SessionUser | null;
   const setView = useApp((s) => s.setView);
   const { data: dash, isLoading: dashLoading, error: dashError, refetch: refetchDash } = useApi<DashboardData>("/api/dashboard");
-  const { data: walletData, error: walletError, refetch: refetchWallet } = useApi<WalletData>("/api/wallet");
+  const { data: walletData, isLoading: isWalletApiLoading, error: walletError, refetch: refetchWallet } = useApi<WalletData>("/api/wallet");
 
   // Pull-to-refresh state
   const [refreshing, setRefreshing] = React.useState(false);
@@ -167,7 +167,7 @@ export function DashboardView() {
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Balance + actions */}
         <div className="space-y-4 lg:col-span-2">
-          {walletLoading(wallet, dashLoading) ? (
+          {walletLoading(wallet, dashLoading, isWalletApiLoading) ? (
             <Skeleton className="h-56 rounded-2xl" />
           ) : wallet ? (
             <MultiCurrencyBalanceCard
@@ -410,8 +410,8 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-function walletLoading(wallet: any, dashLoading: boolean) {
-  return !wallet && dashLoading;
+function walletLoading(wallet: any, dashLoading: boolean, walletApiLoading: boolean) {
+  return !wallet && (dashLoading || walletApiLoading);
 }
 
 function greeting() {

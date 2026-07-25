@@ -60,7 +60,7 @@ async function setupProviders() {
       credentials: {
         apiKey: resendApiKey,
         baseUrl: "https://api.resend.com",
-        fromEmail: resendFromEmail || "TurboPay <noreply@turbopay.ng>",
+        fromEmail: resendFromEmail || "TurboPay <noreply@turbopay.okomba.com>",
       },
       mode: "production",
     });

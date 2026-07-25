@@ -176,7 +176,7 @@ export function MultiCurrencyBalanceCard({
         )}
       </div>
 
-      {accountNumber && (
+      {accountNumber ? (
         <div className="relative mt-6 flex items-end justify-between">
           <div>
             <p className="text-[11px] uppercase tracking-wide opacity-70">Virtual account</p>
@@ -194,6 +194,12 @@ export function MultiCurrencyBalanceCard({
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
+        </div>
+      ) : (
+        <div className="relative mt-6 rounded-lg border border-dashed border-white/20 p-4 text-center">
+          <Loader2 className="mx-auto h-5 w-5 animate-spin opacity-60" />
+          <p className="mt-2 text-xs opacity-70">Setting up your virtual account...</p>
+          <p className="text-[10px] opacity-50">This usually takes a few seconds</p>
         </div>
       )}
     </div>
