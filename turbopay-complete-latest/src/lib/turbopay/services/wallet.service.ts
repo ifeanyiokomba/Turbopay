@@ -14,9 +14,11 @@ import { db } from "@/lib/db";
 import { getWalletView } from "@/lib/turbopay/wallet";
 import { ensureWallet } from "@/lib/turbopay/wallet";
 import { providers } from "@/lib/turbocore/providers/registry";
+import { features } from "@/lib/turbocore/features";
 import { notify } from "@/lib/turbocore/notifications";
 import { processFunding } from "@/lib/turbopay/funding";
 import { nairaToKobo } from "@/lib/turbopay/money";
+import { decryptPii } from "@/lib/turbopay/crypto";
 import { ServiceError } from "./types";
 import type { FundWalletInput, FundWalletResult, GetWalletResult } from "./types";
 
@@ -36,6 +38,7 @@ class WalletService {
     });
 
     // Auto-provision a virtual account if none exists (idempotent).
+    let provisioningError: string | null = null;
     if (!vaccount) {
       try {
         const user = await db.user.findUnique({ where: { id: userId } });
@@ -43,9 +46,8 @@ class WalletService {
           const result = await ensureWallet(userId, `${user.fullName} - Turbopay`);
           vaccount = result.vaccount;
         }
-      } catch {
-        // Auto-provision failed — return null virtual account; the user
-        // can still view their wallet but funding will show a helpful message.
+      } catch (e) {
+        provisioningError = e instanceof Error ? e.message : "Virtual account provisioning failed. Please try again.";
       }
     }
 
@@ -54,8 +56,12 @@ class WalletService {
       orderBy: { createdAt: "desc" },
     });
 
+    const cardsEnabled = await features.isEnabled("turbopay.cards", userId);
+
     return {
       wallet,
+      cardsEnabled,
+      provisioningError,
       virtualAccount: vaccount
         ? {
             id: vaccount.id,
@@ -145,6 +151,74 @@ class WalletService {
     }
 
     return { ok: true, transactionId: result.transactionId, amountNaira };
+  }
+
+  /**
+   * Initialize a Paystack transaction for wallet funding.
+   * Returns the authorization URL for redirect to Paystack checkout.
+   */
+  async fundViaPaystack(userId: string, amountNaira: number): Promise<{ reference: string; authorizationUrl: string; accessCode: string }> {
+    // Get Paystack credentials from the provider config.
+    const config = await db.providerConfig.findFirst({
+      where: { providerName: "paystack", enabled: true, contract: "walletFunding" },
+    });
+    if (!config) throw new ServiceError("PROVIDER_NOT_CONFIGURED", "Paystack is not configured. Please contact support.", 400);
+
+    let secretKey: string;
+    try {
+      if (!config.credentialsEnc) throw new Error("No credentials configured");
+      const creds = JSON.parse(decryptPii(config.credentialsEnc));
+      secretKey = creds.secretKey;
+      if (!secretKey) throw new Error("Missing secretKey");
+    } catch {
+      throw new ServiceError("CREDENTIALS_ERROR", "Paystack credentials are invalid. Please reconfigure.", 500);
+    }
+
+    // Resolve virtual account for the webhook handler to credit the correct wallet.
+    const va = await db.virtualAccount.findFirst({ where: { userId, status: "ACTIVE" } });
+
+    const amountKobo = Math.round(amountNaira * 100);
+    const reference = `tp_paystack_${userId}_${Date.now()}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+    // Initialize Paystack transaction.
+    const res = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: amountKobo,
+        email: `${userId}@turbopay.com`,
+        reference,
+        currency: "NGN",
+        callback_url: `${appUrl}/wallet?payment=success&provider=paystack&ref=${reference}`,
+        metadata: {
+          userId,
+          accountNumber: va?.accountNumber ?? "",
+          reference,
+          integration: "turbopay",
+        },
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new ServiceError("PAYSTACK_ERROR", `Paystack error: ${errBody}`, 502);
+    }
+
+    const data = await res.json() as any;
+    if (!data.status || !data.data?.authorization_url) {
+      throw new ServiceError("PAYSTACK_ERROR", data.message ?? "Failed to initialize payment", 502);
+    }
+
+    return {
+      reference: data.data.reference,
+      authorizationUrl: data.data.authorization_url,
+      accessCode: data.data.access_code,
+    };
   }
 }
 

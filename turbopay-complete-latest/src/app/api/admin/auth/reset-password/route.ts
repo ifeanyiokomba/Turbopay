@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { hashPassword } from "@/lib/turbopay/crypto";
+import { hashPassword, hashOtp } from "@/lib/turbopay/crypto";
+import { rateLimit } from "@/lib/turbopay/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const limited = await rateLimit(req, { key: "admin-reset-password", limit: 5, windowMs: 15 * 60 * 1000 });
+  if (limited) return limited;
+
   try {
     const { code, password } = await req.json();
     if (!code || !password) {
       return NextResponse.json({ error: "Code and password required" }, { status: 400 });
     }
 
+    // Find the most recent unconsumed token for this purpose (code is now hashed).
     const recoveryToken = await db.recoveryToken.findFirst({
-      where: { code, purpose: "RESET_PASSWORD", expiresAt: { gt: new Date() }, consumed: false },
+      where: { purpose: "RESET_PASSWORD", expiresAt: { gt: new Date() }, consumed: false },
+      orderBy: { createdAt: "desc" },
     });
 
-    if (!recoveryToken) {
+    if (!recoveryToken || !recoveryToken.code) {
+      return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
+    }
+
+    // Verify the hashed code matches
+    const hashedInput = hashOtp(code);
+    if (hashedInput !== recoveryToken.code) {
       return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
     }
 

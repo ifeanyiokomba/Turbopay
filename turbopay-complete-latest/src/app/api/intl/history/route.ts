@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/turbopay/auth";
 import { errorJson, json } from "@/lib/turbopay/api";
-import { db } from "@/lib/db";
+import { intlTransferService } from "@/lib/turbopay/services/intl-transfer.service";
+import { ServiceError } from "@/lib/turbopay/services/types";
 
 /**
  * GET /api/intl/history — list international transfer history for the user.
@@ -10,25 +11,16 @@ export async function GET(req: Request) {
   try { user = await requireUser(); } catch (e: any) { return errorJson(e.message, e.status ?? 401, e.code); }
 
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
-  const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 100);
-  const cursor = searchParams.get("cursor");
 
-  const where: Record<string, unknown> = { userId: user.id };
-  if (status) where.status = status;
-
-  const transfers = await db.transaction.findMany({
-    where: { ...where, provider: "intl-transfer" },
-    orderBy: { createdAt: "desc" },
-    take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-  });
-
-  const hasMore = transfers.length > limit;
-  const items = hasMore ? transfers.slice(0, limit) : transfers;
-
-  return json({
-    data: items,
-    nextCursor: hasMore ? items[items.length - 1]?.id : null,
-  });
+  try {
+    const result = await intlTransferService.history(user.id, {
+      status: searchParams.get("status") ?? undefined,
+      limit: Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 100),
+      cursor: searchParams.get("cursor") ?? undefined,
+    });
+    return json({ data: result.items, nextCursor: result.nextCursor });
+  } catch (e: any) {
+    if (e instanceof ServiceError) return errorJson(e.message, e.status, e.code);
+    return errorJson(e.message || "Failed to load history", 500);
+  }
 }

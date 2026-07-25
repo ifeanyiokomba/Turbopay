@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/turbopay/auth";
 import { errorJson, json } from "@/lib/turbopay/api";
-import { db } from "@/lib/db";
+import { intlTransferService } from "@/lib/turbopay/services/intl-transfer.service";
+import { ServiceError } from "@/lib/turbopay/services/types";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { z } from "zod";
 
@@ -16,24 +17,18 @@ const createSchema = z.object({
   currency: z.string().length(3).optional(),
 });
 
-/**
- * GET /api/intl/beneficiaries — list international beneficiaries.
- */
 export async function GET() {
   let user;
   try { user = await requireUser(); } catch (e: any) { return errorJson(e.message, e.status ?? 401, e.code); }
-
-  const beneficiaries = await db.internationalBeneficiary.findMany({
-    where: { userId: user.id },
-    orderBy: [{ isFavourite: "desc" }, { createdAt: "desc" }],
-  });
-
-  return json({ data: beneficiaries });
+  try {
+    const beneficiaries = await intlTransferService.beneficiaries(user.id);
+    return json({ data: beneficiaries });
+  } catch (e: any) {
+    if (e instanceof ServiceError) return errorJson(e.message, e.status, e.code);
+    return errorJson(e.message || "Failed to load beneficiaries", 500);
+  }
 }
 
-/**
- * POST /api/intl/beneficiaries — create a new international beneficiary.
- */
 export async function POST(req: Request) {
   let user;
   try { user = await requireUser(); } catch (e: any) { return errorJson(e.message, e.status ?? 401, e.code); }
@@ -46,16 +41,15 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.issues[0]?.message ?? "Invalid", 422, "VALIDATION");
 
-  const beneficiary = await db.internationalBeneficiary.create({
-    data: { ...parsed.data, userId: user.id, currency: parsed.data.currency ?? "USD" },
-  });
-
-  return json({ data: beneficiary }, 201);
+  try {
+    const beneficiary = await intlTransferService.createBeneficiary(user.id, parsed.data);
+    return json({ data: beneficiary }, 201);
+  } catch (e: any) {
+    if (e instanceof ServiceError) return errorJson(e.message, e.status, e.code);
+    return errorJson(e.message || "Failed to create beneficiary", 500);
+  }
 }
 
-/**
- * DELETE /api/intl/beneficiaries?id=xxx — delete an international beneficiary.
- */
 export async function DELETE(req: Request) {
   let user;
   try { user = await requireUser(); } catch (e: any) { return errorJson(e.message, e.status ?? 401, e.code); }
@@ -64,16 +58,15 @@ export async function DELETE(req: Request) {
   const id = searchParams.get("id");
   if (!id) return errorJson("Missing id", 422);
 
-  const beneficiary = await db.internationalBeneficiary.findFirst({ where: { id, userId: user.id } });
-  if (!beneficiary) return errorJson("Beneficiary not found", 404);
-
-  await db.internationalBeneficiary.delete({ where: { id } });
-  return json({ data: { deleted: true } });
+  try {
+    await intlTransferService.deleteBeneficiary(user.id, id);
+    return json({ data: { deleted: true } });
+  } catch (e: any) {
+    if (e instanceof ServiceError) return errorJson(e.message, e.status, e.code);
+    return errorJson(e.message || "Failed to delete beneficiary", 500);
+  }
 }
 
-/**
- * PATCH /api/intl/beneficiaries — update favourite or other fields.
- */
 export async function PATCH(req: Request) {
   let user;
   try { user = await requireUser(); } catch (e: any) { return errorJson(e.message, e.status ?? 401, e.code); }
@@ -84,13 +77,11 @@ export async function PATCH(req: Request) {
   const { id, isFavourite, nickname } = body as { id?: string; isFavourite?: boolean; nickname?: string };
   if (!id) return errorJson("Missing id", 422);
 
-  const beneficiary = await db.internationalBeneficiary.findFirst({ where: { id, userId: user.id } });
-  if (!beneficiary) return errorJson("Beneficiary not found", 404);
-
-  const updateData: Record<string, unknown> = {};
-  if (isFavourite !== undefined) updateData.isFavourite = isFavourite;
-  if (nickname !== undefined) updateData.nickname = nickname;
-
-  const updated = await db.internationalBeneficiary.update({ where: { id }, data: updateData });
-  return json({ data: updated });
+  try {
+    const updated = await intlTransferService.updateBeneficiary(user.id, id, { isFavourite, nickname });
+    return json({ data: updated });
+  } catch (e: any) {
+    if (e instanceof ServiceError) return errorJson(e.message, e.status, e.code);
+    return errorJson(e.message || "Failed to update beneficiary", 500);
+  }
 }

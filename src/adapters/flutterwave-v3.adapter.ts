@@ -3,6 +3,7 @@
 // Flutterwave v3 is NOT deprecated — use this for features not available in v4
 
 import { BaseAdapter, BaseAdapterConfig } from './base.adapter';
+import { validateFlutterwaveSignature } from '../utils/crypto';
 import {
   ProviderName,
   ProviderCapabilities,
@@ -193,7 +194,7 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
     await this.refreshToken();
 
     const response = await this.withRetry(() =>
-      this.httpClient.post('/v3/subaccounts', {
+      this.httpClient.post('/subaccounts', {
         account_bank: subAccount.account_bank,
         account_number: subAccount.account_number,
         country: subAccount.country,
@@ -211,25 +212,25 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
 
   async getSubAccounts(): Promise<SubAccountResponse[]> {
     await this.refreshToken();
-    const response = await this.httpClient.get('/v3/subaccounts');
+    const response = await this.httpClient.get('/subaccounts');
     return response.data.data || [];
   }
 
   async getSubAccount(id: string): Promise<SubAccountResponse> {
     await this.refreshToken();
-    const response = await this.httpClient.get(`/v3/subaccounts/${id}`);
+    const response = await this.httpClient.get(`/subaccounts/${id}`);
     return response.data.data;
   }
 
   async updateSubAccount(id: string, updates: Partial<SubAccount>): Promise<SubAccountResponse> {
     await this.refreshToken();
-    const response = await this.httpClient.put(`/v3/subaccounts/${id}`, updates);
+    const response = await this.httpClient.put(`/subaccounts/${id}`, updates);
     return response.data.data;
   }
 
   async deleteSubAccount(id: string): Promise<void> {
     await this.refreshToken();
-    await this.httpClient.delete(`/v3/subaccounts/${id}`);
+    await this.httpClient.delete(`/subaccounts/${id}`);
   }
 
   // ===========================================================================
@@ -240,7 +241,7 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
     await this.refreshToken();
 
     const response = await this.withRetry(() =>
-      this.httpClient.post('/v3/payment-plans', {
+      this.httpClient.post('/payment-plans', {
         name: plan.name,
         interval: plan.interval,
         amount: plan.amount,
@@ -254,19 +255,19 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
 
   async getPaymentPlans(): Promise<PaymentPlanResponse[]> {
     await this.refreshToken();
-    const response = await this.httpClient.get('/v3/payment-plans');
+    const response = await this.httpClient.get('/payment-plans');
     return response.data.data || [];
   }
 
   async getPaymentPlan(id: string): Promise<PaymentPlanResponse> {
     await this.refreshToken();
-    const response = await this.httpClient.get(`/v3/payment-plans/${id}`);
+    const response = await this.httpClient.get(`/payment-plans/${id}`);
     return response.data.data;
   }
 
   async cancelPaymentPlan(id: string): Promise<void> {
     await this.refreshToken();
-    await this.httpClient.put(`/v3/payment-plans/${id}`, { status: 'inactive' });
+    await this.httpClient.put(`/payment-plans/${id}`, { status: 'inactive' });
   }
 
   // ===========================================================================
@@ -275,19 +276,19 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
 
   async getChargebacks(): Promise<Chargeback[]> {
     await this.refreshToken();
-    const response = await this.httpClient.get('/v3/chargebacks');
+    const response = await this.httpClient.get('/chargebacks');
     return response.data.data || [];
   }
 
   async getChargeback(id: string): Promise<Chargeback> {
     await this.refreshToken();
-    const response = await this.httpClient.get(`/v3/chargebacks/${id}`);
+    const response = await this.httpClient.get(`/chargebacks/${id}`);
     return response.data.data;
   }
 
   async respondToChargeback(id: string, action: 'accept' | 'decline', comment: string, prooflink?: string): Promise<void> {
     await this.refreshToken();
-    await this.httpClient.put(`/v3/chargebacks/${id}`, {
+    await this.httpClient.put(`/chargebacks/${id}`, {
       action,
       comment,
       prooflink
@@ -296,7 +297,7 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
 
   async uploadChargebackEvidence(id: string, imageUrl: string): Promise<void> {
     await this.refreshToken();
-    await this.httpClient.post('/v3/upload_image', {
+    await this.httpClient.post('/upload_image', {
       image: imageUrl,
       chargeback_id: id
     });
@@ -308,7 +309,7 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
 
   async listBillers(): Promise<Biller[]> {
     await this.refreshToken();
-    const response = await this.httpClient.get('/v3/bill-categories');
+    const response = await this.httpClient.get('/bill-categories');
     return (response.data.data || []).map((cat: any) => ({
       id: cat.id?.toString(),
       name: cat.name,
@@ -319,7 +320,7 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
 
   async getBillerItems(biller_id: string): Promise<BillerItem[]> {
     await this.refreshToken();
-    const response = await this.httpClient.get(`/v3/bill-items?bill_category_id=${biller_id}`);
+    const response = await this.httpClient.get(`/bill-items?bill_category_id=${biller_id}`);
     return (response.data.data || []).map((item: any) => ({
       id: item.id?.toString(),
       name: item.name,
@@ -332,7 +333,7 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
     await this.refreshToken();
 
     const response = await this.withRetry(() =>
-      this.httpClient.post('/v3/bills', {
+      this.httpClient.post('/bills', {
         biller_code: request.biller_id,
         item_code: request.item_id,
         amount: request.amount,
@@ -439,12 +440,11 @@ export class FlutterwaveV3Adapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    // V3 uses verif-hash header
     if (!this.flwConfig.webhook_secret) {
       console.error('[FlutterwaveV3] Webhook secret not configured — rejecting webhook');
       return false;
     }
-    return signature === this.flwConfig.webhook_secret;
+    return validateFlutterwaveSignature(payload, signature, this.flwConfig.webhook_secret);
   }
 
   parseWebhookEvent(payload: any): UnifiedWebhookEvent {

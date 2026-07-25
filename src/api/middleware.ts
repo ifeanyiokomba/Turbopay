@@ -80,6 +80,18 @@ export function customerAuthMiddleware(customerAuth: CustomerAuthService) {
 export function rateLimitMiddleware(maxRequests: number = 100, windowMs: number = 60000) {
   const requests = new Map<string, { count: number; resetAt: number }>();
 
+  // Periodic cleanup of expired entries to prevent unbounded memory growth.
+  // Runs every 5 minutes; entries are expired when now > resetAt.
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, record] of requests) {
+      if (now > record.resetAt) requests.delete(key);
+    }
+  }, 5 * 60 * 1000);
+
+  // Allow Node.js to exit even if the interval is still running.
+  if (cleanupInterval.unref) cleanupInterval.unref();
+
   return (req: Request, res: Response, next: NextFunction) => {
     // Use the LAST IP in X-Forwarded-For (trusted proxy's entry), not the first
     // (which is client-controlled and spoofable). Fall back to x-real-ip.
@@ -124,10 +136,10 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
   console.error(`[API Error] ${req.method} ${req.path}:`, err);
 
   const status = err.status || 500;
-  const message = err.message || 'Internal server error';
 
+  // Never leak internal error messages to the client — log them server-side only.
   res.status(status).json({
-    error: message,
+    error: 'Internal server error',
     code: err.code || 'INTERNAL_ERROR',
     timestamp: new Date().toISOString()
   });

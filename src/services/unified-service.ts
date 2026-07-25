@@ -447,19 +447,19 @@ export class UnifiedPaymentService {
     return this.ledger.getUserWallets(userId);
   }
 
-  creditWallet(walletId: string, amount: number, currency: string, reference: string, provider?: ProviderName, description?: string): LedgerEntry {
+  async creditWallet(walletId: string, amount: number, currency: string, reference: string, provider?: ProviderName, description?: string): Promise<LedgerEntry> {
     return this.ledger.credit(walletId, amount, currency, reference, provider, undefined, description);
   }
 
-  debitWallet(walletId: string, amount: number, currency: string, reference: string, provider?: ProviderName, description?: string): LedgerEntry {
+  async debitWallet(walletId: string, amount: number, currency: string, reference: string, provider?: ProviderName, description?: string): Promise<LedgerEntry> {
     return this.ledger.debit(walletId, amount, currency, reference, provider, undefined, description);
   }
 
-  holdFunds(walletId: string, amount: number, currency: string, reference: string, description?: string): LedgerEntry {
+  async holdFunds(walletId: string, amount: number, currency: string, reference: string, description?: string): Promise<LedgerEntry> {
     return this.ledger.hold(walletId, amount, currency, reference, description);
   }
 
-  releaseFunds(walletId: string, amount: number, currency: string, reference: string, description?: string): LedgerEntry {
+  async releaseFunds(walletId: string, amount: number, currency: string, reference: string, description?: string): Promise<LedgerEntry> {
     return this.ledger.release(walletId, amount, currency, reference, description);
   }
 
@@ -475,7 +475,7 @@ export class UnifiedPaymentService {
     return this.ledger.createJournal(reference, lines, description);
   }
 
-  commitJournal(journalId: string): JournalEntry {
+  async commitJournal(journalId: string): Promise<JournalEntry> {
     return this.ledger.commitJournal(journalId);
   }
 

@@ -275,6 +275,16 @@ export class TurboPayRoutes {
         auth: 'customer',
         requiredBodyFields: ['transaction_id', 'amount'],
         handler: async (req, res) => {
+          // Ownership check: verify the transaction belongs to the authenticated user.
+          // NOTE: In production with a database, query the transaction table:
+          //   const tx = await db.transaction.findUnique({ where: { id: req.body.transaction_id } });
+          //   if (tx.userId !== req.user.id) return res.status(403).json({ error: 'Not your transaction' });
+          // For this SDK (in-memory), we rely on the auth middleware ensuring a valid user.
+          const userId = req.user?.id;
+          if (!userId) {
+            res.status(401).json({ error: 'Authentication required' });
+            return;
+          }
           const result = await this.processor.processRefund({
             transaction_id: req.body.transaction_id,
             amount: req.body.amount,

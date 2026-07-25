@@ -33,7 +33,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const ip = forwardedFor
+      ? forwardedFor.split(",").pop()?.trim() || req.headers.get("x-real-ip") || "unknown"
+      : req.headers.get("x-real-ip") || "unknown";
     const session = await createSession(user.id, { ip });
 
     const response = NextResponse.json({
@@ -53,6 +56,6 @@ export async function POST(req: NextRequest) {
     const detail = error?.message ?? String(error);
     const code = error?.code ?? "UNKNOWN";
     console.error("[Admin Login Error]", { message: detail, code, stack: error?.stack?.slice(0, 500) });
-    return NextResponse.json({ error: `Internal server error: ${detail}` }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

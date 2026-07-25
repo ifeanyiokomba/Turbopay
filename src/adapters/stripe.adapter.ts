@@ -9,6 +9,7 @@
 // the provider selection engine until needed.
 
 import { BaseAdapter, BaseAdapterConfig } from './base.adapter';
+import { validateStripeSignature } from '../utils/crypto';
 import {
   ProviderName,
   ProviderCapabilities,
@@ -233,9 +234,14 @@ export class StripeAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    // TODO: Implement Stripe webhook signature verification
-    // Stripe uses HMAC-SHA256 with timestamp
-    return true; // Placeholder
+    if (!this.stripeConfig.webhook_secret) {
+      console.error('[Stripe] Webhook secret not configured — rejecting webhook');
+      return false;
+    }
+    // Stripe signature verification uses the raw body, not the parsed payload.
+    // The signatureHeader is passed as the `signature` parameter.
+    const rawBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    return validateStripeSignature(rawBody, signature, this.stripeConfig.webhook_secret);
   }
 
   parseWebhookEvent(payload: any): UnifiedWebhookEvent {

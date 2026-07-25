@@ -17,6 +17,38 @@ import {
 import { PersistenceManager } from '../utils/persistence';
 
 // =============================================================================
+// PER-WALLET MUTEX
+// =============================================================================
+// Prevents concurrent balance-mutating operations on the same wallet from
+// interleaving at await points. Operations on DIFFERENT wallets run in parallel.
+
+type MutexEntry = { promise: Promise<void>; queue: number };
+const walletMutexes = new Map<string, MutexEntry>();
+
+async function withWalletLock<T>(walletId: string, fn: () => T | Promise<T>): Promise<T> {
+  let entry = walletMutexes.get(walletId);
+  if (!entry) {
+    entry = { promise: Promise.resolve(), queue: 0 };
+    walletMutexes.set(walletId, entry);
+  }
+  entry.queue++;
+  await entry.promise;
+
+  let resolve!: () => void;
+  entry.promise = new Promise<void>((r) => { resolve = r; });
+
+  try {
+    return await fn();
+  } finally {
+    entry.queue--;
+    if (entry.queue === 0) {
+      walletMutexes.delete(walletId);
+    }
+    resolve();
+  }
+}
+
+// =============================================================================
 // LEDGER SERVICE
 // =============================================================================
 
@@ -98,7 +130,7 @@ export class LedgerService {
   // LEDGER ENTRIES
   // ===========================================================================
 
-  credit(
+  async credit(
     walletId: string,
     amount: number,
     currency: string,
@@ -107,32 +139,33 @@ export class LedgerService {
     providerReference?: string,
     description?: string,
     metadata?: Record<string, any>
-  ): LedgerEntry {
-    const wallet = this.wallets.get(walletId);
-    if (!wallet) throw new Error(`Wallet ${walletId} not found`);
-    if (wallet.status !== 'active') throw new Error('Wallet is not active');
+  ): Promise<LedgerEntry> {
+    return withWalletLock(walletId, () => {
+      const wallet = this.wallets.get(walletId);
+      if (!wallet) throw new Error(`Wallet ${walletId} not found`);
+      if (wallet.status !== 'active') throw new Error('Wallet is not active');
 
-    const balanceBefore = wallet.balance;
-    const availableBefore = wallet.available_balance;
+      const balanceBefore = wallet.balance;
 
-    wallet.balance += amount;
-    wallet.available_balance += amount;
-    wallet.updated_at = new Date();
+      wallet.balance += amount;
+      wallet.available_balance += amount;
+      wallet.updated_at = new Date();
 
-    const entry = this.createLedgerEntry(
-      walletId, 'credit', amount, currency, 'completed',
-      reference, provider, providerReference, description, metadata,
-      balanceBefore, wallet.balance
-    );
+      const entry = this.createLedgerEntry(
+        walletId, 'credit', amount, currency, 'completed',
+        reference, provider, providerReference, description, metadata,
+        balanceBefore, wallet.balance
+      );
 
-    this.audit('ledger.credit', 'ledger_entry', entry.id, {
-      wallet_id: walletId, amount, currency, reference
+      this.audit('ledger.credit', 'ledger_entry', entry.id, {
+        wallet_id: walletId, amount, currency, reference
+      });
+
+      return entry;
     });
-
-    return entry;
   }
 
-  debit(
+  async debit(
     walletId: string,
     amount: number,
     currency: string,
@@ -141,83 +174,92 @@ export class LedgerService {
     providerReference?: string,
     description?: string,
     metadata?: Record<string, any>
-  ): LedgerEntry {
-    const wallet = this.wallets.get(walletId);
-    if (!wallet) throw new Error(`Wallet ${walletId} not found`);
-    if (wallet.status !== 'active') throw new Error('Wallet is not active');
-    if (wallet.available_balance < amount) {
-      throw new Error(`Insufficient balance: available ${wallet.available_balance} ${currency}, required ${amount} ${currency}`);
-    }
+  ): Promise<LedgerEntry> {
+    return withWalletLock(walletId, () => {
+      const wallet = this.wallets.get(walletId);
+      if (!wallet) throw new Error(`Wallet ${walletId} not found`);
+      if (wallet.status !== 'active') throw new Error('Wallet is not active');
+      if (wallet.available_balance < amount) {
+        throw new Error(`Insufficient balance: available ${wallet.available_balance} ${currency}, required ${amount} ${currency}`);
+      }
 
-    const balanceBefore = wallet.balance;
+      const balanceBefore = wallet.balance;
 
-    wallet.balance -= amount;
-    wallet.available_balance -= amount;
-    wallet.updated_at = new Date();
+      wallet.balance -= amount;
+      wallet.available_balance -= amount;
+      wallet.updated_at = new Date();
 
-    const entry = this.createLedgerEntry(
-      walletId, 'debit', amount, currency, 'completed',
-      reference, provider, providerReference, description, metadata,
-      balanceBefore, wallet.balance
-    );
+      const entry = this.createLedgerEntry(
+        walletId, 'debit', amount, currency, 'completed',
+        reference, provider, providerReference, description, metadata,
+        balanceBefore, wallet.balance
+      );
 
-    this.audit('ledger.debit', 'ledger_entry', entry.id, {
-      wallet_id: walletId, amount, currency, reference
+      this.audit('ledger.debit', 'ledger_entry', entry.id, {
+        wallet_id: walletId, amount, currency, reference
+      });
+
+      return entry;
     });
-
-    return entry;
   }
 
-  hold(
+  async hold(
     walletId: string,
     amount: number,
     currency: string,
     reference: string,
     description?: string,
     metadata?: Record<string, any>
-  ): LedgerEntry {
-    const wallet = this.wallets.get(walletId);
-    if (!wallet) throw new Error(`Wallet ${walletId} not found`);
-    if (wallet.status !== 'active') throw new Error('Wallet is not active');
-    if (wallet.available_balance < amount) {
-      throw new Error(`Insufficient available balance to hold: available ${wallet.available_balance}, required ${amount}`);
-    }
+  ): Promise<LedgerEntry> {
+    return withWalletLock(walletId, () => {
+      const wallet = this.wallets.get(walletId);
+      if (!wallet) throw new Error(`Wallet ${walletId} not found`);
+      if (wallet.status !== 'active') throw new Error('Wallet is not active');
+      if (wallet.available_balance < amount) {
+        throw new Error(`Insufficient available balance to hold: available ${wallet.available_balance}, required ${amount}`);
+      }
 
-    const balanceBefore = wallet.balance;
+      const balanceBefore = wallet.balance;
 
-    wallet.available_balance -= amount;
-    wallet.held_balance += amount;
-    wallet.updated_at = new Date();
+      wallet.available_balance -= amount;
+      wallet.held_balance += amount;
+      wallet.updated_at = new Date();
 
-    return this.createLedgerEntry(
-      walletId, 'hold', amount, currency, 'completed',
-      reference, undefined, undefined, description, metadata,
-      balanceBefore, wallet.balance
-    );
+      return this.createLedgerEntry(
+        walletId, 'hold', amount, currency, 'completed',
+        reference, undefined, undefined, description, metadata,
+        balanceBefore, wallet.balance
+      );
+    });
   }
 
-  release(
+  async release(
     walletId: string,
     amount: number,
     currency: string,
     reference: string,
     description?: string,
     metadata?: Record<string, any>
-  ): LedgerEntry {
-    const wallet = this.wallets.get(walletId);
-    if (!wallet) throw new Error(`Wallet ${walletId} not found`);
+  ): Promise<LedgerEntry> {
+    return withWalletLock(walletId, () => {
+      const wallet = this.wallets.get(walletId);
+      if (!wallet) throw new Error(`Wallet ${walletId} not found`);
+      if (wallet.held_balance < amount) {
+        throw new Error(`Insufficient held balance: held ${wallet.held_balance} ${currency}, required ${amount} ${currency}`);
+      }
 
-    const balanceBefore = wallet.balance;
+      const balanceBefore = wallet.balance;
 
-    wallet.available_balance += amount;
-    wallet.held_balance -= amount;
-    wallet.updated_at = new Date();
+      wallet.available_balance += amount;
+      wallet.held_balance -= amount;
+      wallet.updated_at = new Date();
 
-    return this.createLedgerEntry(
-      walletId, 'release', amount, currency, 'completed',
-      reference, undefined, undefined, description, metadata,
-      balanceBefore, wallet.balance
-    );
+      return this.createLedgerEntry(
+        walletId, 'release', amount, currency, 'completed',
+        reference, undefined, undefined, description, metadata,
+        balanceBefore, wallet.balance
+      );
+    });
   }
 
   recordFee(
@@ -258,7 +300,7 @@ export class LedgerService {
     const totalDebit = lines.filter(l => l.type === 'debit').reduce((sum, l) => sum + l.amount, 0);
     const totalCredit = lines.filter(l => l.type === 'credit').reduce((sum, l) => sum + l.amount, 0);
 
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    if (Math.abs(totalDebit - totalCredit) > 0) {
       throw new Error(`Journal entries must balance: debit ${totalDebit} != credit ${totalCredit}`);
     }
 
@@ -279,18 +321,33 @@ export class LedgerService {
     return journal;
   }
 
-  commitJournal(journalId: string): JournalEntry {
+  async commitJournal(journalId: string): Promise<JournalEntry> {
     const journal = this.journalEntries.get(journalId);
     if (!journal) throw new Error(`Journal ${journalId} not found`);
     if (journal.status !== 'pending') throw new Error(`Journal is already ${journal.status}`);
 
-    // Apply each line to the corresponding wallet
-    for (const line of journal.entries) {
-      if (line.type === 'debit') {
-        this.debit(line.wallet_id, line.amount, line.currency, journal.reference, undefined, undefined, journal.description);
-      } else {
-        this.credit(line.wallet_id, line.amount, line.currency, journal.reference, undefined, undefined, journal.description);
+    // Apply each line — credit/debit are now async with per-wallet locking.
+    // If any line fails, previously applied lines are already committed (no
+    // automatic rollback in the in-memory SDK). For production with a real
+    // database, wrap in a DB transaction.
+    const applied: Array<{ walletId: string; amount: number; type: string }> = [];
+    try {
+      for (const line of journal.entries) {
+        if (line.type === 'debit') {
+          await this.debit(line.wallet_id, line.amount, line.currency, journal.reference, undefined, undefined, journal.description);
+        } else {
+          await this.credit(line.wallet_id, line.amount, line.currency, journal.reference, undefined, undefined, journal.description);
+        }
+        applied.push({ walletId: line.wallet_id, amount: line.amount, type: line.type });
       }
+    } catch (error) {
+      // Log partial commit for manual reconciliation
+      this.audit('journal.partial_commit', 'journal', journal.id, {
+        reference: journal.reference,
+        applied_lines: applied,
+        error: (error as Error).message
+      });
+      throw new Error(`Journal commit failed after ${applied.length}/${journal.entries.length} lines: ${(error as Error).message}`);
     }
 
     journal.status = 'committed';
@@ -300,7 +357,7 @@ export class LedgerService {
     return journal;
   }
 
-  reverseJournal(journalId: string, reason?: string): JournalEntry {
+  async reverseJournal(journalId: string, reason?: string): Promise<JournalEntry> {
     const journal = this.journalEntries.get(journalId);
     if (!journal) throw new Error(`Journal ${journalId} not found`);
     if (journal.status !== 'committed') throw new Error(`Journal is ${journal.status}, cannot reverse`);
@@ -308,9 +365,9 @@ export class LedgerService {
     // Reverse each line
     for (const line of journal.entries) {
       if (line.type === 'debit') {
-        this.credit(line.wallet_id, line.amount, line.currency, `${journal.reference}_reversal`, undefined, undefined, reason || 'Journal reversal');
+        await this.credit(line.wallet_id, line.amount, line.currency, `${journal.reference}_reversal`, undefined, undefined, reason || 'Journal reversal');
       } else {
-        this.debit(line.wallet_id, line.amount, line.currency, `${journal.reference}_reversal`, undefined, undefined, reason || 'Journal reversal');
+        await this.debit(line.wallet_id, line.amount, line.currency, `${journal.reference}_reversal`, undefined, undefined, reason || 'Journal reversal');
       }
     }
 

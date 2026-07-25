@@ -90,12 +90,23 @@ export function hashPassword(password: string, salt: string): Promise<string> {
 
 /**
  * Verify a password against a stored scrypt hash.
+ * Uses timing-safe comparison to prevent timing attacks.
  */
 export function verifyPassword(password: string, salt: string, storedHash: string): Promise<boolean> {
   return new Promise((resolve, reject) => {
     crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
       if (err) reject(err);
-      else resolve(derivedKey.toString('hex') === storedHash);
+      else {
+        const derivedHex = derivedKey.toString('hex');
+        // Ensure both buffers are the same length for timingSafeEqual
+        const a = Buffer.from(derivedHex, 'hex');
+        const b = Buffer.from(storedHash, 'hex');
+        if (a.length !== b.length) {
+          resolve(false);
+        } else {
+          resolve(crypto.timingSafeEqual(a, b));
+        }
+      }
     });
   });
 }
@@ -209,6 +220,60 @@ export function validateQuicktellerSignature(
 ): boolean {
   const hash = hmacSHA256(JSON.stringify(payload), secret);
   return hash === signature;
+}
+
+// =============================================================================
+// STRIPE SPECIFIC
+// =============================================================================
+
+/**
+ * Validate Stripe webhook signature.
+ * Stripe sends: stripe-signature header with format "t=timestamp,v1=signature"
+ * The signature is computed as: HMAC-SHA256(secret, "${timestamp}.${body}")
+ * Uses timing-safe comparison to prevent timing attacks.
+ */
+export function validateStripeSignature(
+  rawBody: string,
+  signatureHeader: string,
+  secret: string,
+  toleranceSeconds: number = 300
+): boolean {
+  if (!signatureHeader || !secret) return false;
+
+  // Parse the stripe-signature header: "t=1234567890,v1=abcdef..."
+  const parts = signatureHeader.split(',');
+  let timestamp = '';
+  let signature = '';
+
+  for (const part of parts) {
+    const [key, value] = part.split('=');
+    if (key === 't') timestamp = value;
+    if (key === 'v1') signature = value;
+  }
+
+  if (!timestamp || !signature) return false;
+
+  // Check timestamp tolerance (prevent replay attacks)
+  const timestampMs = parseInt(timestamp, 10) * 1000;
+  const now = Date.now();
+  if (Math.abs(now - timestampMs) > toleranceSeconds * 1000) {
+    return false;
+  }
+
+  // Compute expected signature
+  const signedPayload = `${timestamp}.${rawBody}`;
+  const expectedSignature = hmacSHA256(signedPayload, secret);
+
+  // Timing-safe comparison
+  try {
+    const sigBuffer = Buffer.from(signature, 'hex');
+    const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+    if (sigBuffer.length !== expectedBuffer.length) return false;
+    return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
+  } catch {
+    // Fallback to string comparison if hex decoding fails
+    return signature === expectedSignature;
+  }
 }
 
 // =============================================================================

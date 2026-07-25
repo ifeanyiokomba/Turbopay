@@ -10,6 +10,5 @@ db/*.db-journal
 *.md
 vercel.json
 .env
-.env.local
-.env.production
+.env.*
 README.md

@@ -42,6 +42,7 @@ export interface MPesaAdapterConfig extends BaseAdapterConfig {
   shortcode: string;
   passkey: string;
   callback_url?: string;
+  webhook_secret?: string; // Secret token for callback URL validation (e.g., embedded in callback URL path)
   initiator_name?: string;
   security_credential?: string;
   // B2C requires RSA-encrypted security credential with Safaricom's public certificate
@@ -416,8 +417,24 @@ export class MPesaAdapter extends BaseAdapter {
   // Do NOT add a fake signature check — there is nothing to check.
 
   validateWebhook(payload: any, signature: string): boolean {
-    // M-Pesa does not provide webhook signatures — accept all callbacks
-    // The callback URL itself must be secured via HTTPS and unguessable path
+    // M-Pesa Daraja does NOT provide header-based HMAC signatures.
+    // Security relies on: (1) HTTPS callback URL, (2) unguessable URL path with
+    // a secret token, and (3) validating the request body structure.
+    //
+    // The webhook_secret should be a random token embedded in the callback URL.
+    // For example, if callback_url = "https://app.com/api/webhooks/mpesa/x9y8z7",
+    // then webhook_secret = "x9y8z7" and the incoming request path must contain it.
+    if (!this.mpesaConfig.webhook_secret) {
+      console.error('[M-Pesa] Webhook secret not configured — rejecting webhook. Set MPESA_WEBHOOK_SECRET to a random token embedded in your callback URL path.');
+      return false;
+    }
+    // Validate that the signature parameter matches the configured secret.
+    // For M-Pesa, the webhook handler should extract the URL path token
+    // and pass it as the signature parameter.
+    if (signature !== this.mpesaConfig.webhook_secret) {
+      console.error('[M-Pesa] Webhook signature mismatch — rejecting webhook');
+      return false;
+    }
     return true;
   }
 

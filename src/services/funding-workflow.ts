@@ -562,7 +562,7 @@ export class FundingWorkflowService {
   ): Promise<{ success: boolean; session_id?: string; message: string }> {
     try {
       // Create ledger credit entry
-      const ledgerEntry = this.ledger.credit(
+      const ledgerEntry = await this.ledger.credit(
         session.wallet_id,
         session.amount - session.fee, // Net amount after fees
         session.currency,

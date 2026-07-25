@@ -48,7 +48,7 @@ export class AirtelMoneyAdapter extends BaseAdapter {
   readonly name: ProviderName = 'airtel_money';
   readonly displayName = 'Airtel Money';
   readonly baseUrl = 'https://openapi.airtel.africa';
-  readonly sandboxBaseUrl = 'https://openapiuat.airel.africa';
+  readonly sandboxBaseUrl = 'https://openapiuat.airtel.africa';
 
   private airtelConfig: AirtelMoneyAdapterConfig;
 

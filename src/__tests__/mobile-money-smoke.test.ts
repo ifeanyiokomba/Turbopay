@@ -353,19 +353,19 @@ describe('Mobile Money Smoke Tests', () => {
   // ===========================================================================
 
   describe('Ledger Integration', () => {
-    test('Wallet creation and credit/debit cycle works', () => {
+    test('Wallet creation and credit/debit cycle works', async () => {
       const wallet = ledger.createWallet('user_1', 'NGN');
       expect(wallet.id).toBeDefined();
       expect(wallet.balance).toBe(0);
 
-      const credit = ledger.credit(wallet.id, 50000, 'NGN', 'ref_001', 'mtn_momo', undefined, 'Funding via MTN MoMo');
+      const credit = await ledger.credit(wallet.id, 50000, 'NGN', 'ref_001', 'mtn_momo', undefined, 'Funding via MTN MoMo');
       expect(credit.type).toBe('credit');
       expect(credit.amount).toBe(50000);
 
       const balance = ledger.getWalletBalance(wallet.id);
       expect(balance!.balance).toBe(50000);
 
-      const debit = ledger.debit(wallet.id, 10000, 'NGN', 'ref_002', undefined, undefined, 'Disbursement');
+      const debit = await ledger.debit(wallet.id, 10000, 'NGN', 'ref_002', undefined, undefined, 'Disbursement');
       expect(debit.type).toBe('debit');
 
       const finalBalance = ledger.getWalletBalance(wallet.id);

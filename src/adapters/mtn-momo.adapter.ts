@@ -41,6 +41,7 @@ export interface MTNMoMoAdapterConfig extends BaseAdapterConfig {
   disbursement_subscription_key?: string;
   api_user?: string;
   callback_url?: string;
+  webhook_secret?: string; // Secret token for callback URL validation (e.g., embedded in callback URL path)
   target_environment?: string;
 }
 
@@ -545,9 +546,24 @@ export class MTNMoMoAdapter extends BaseAdapter {
   // ===========================================================================
 
   validateWebhook(payload: any, signature: string): boolean {
-    // MTN MoMo sandbox does not reliably deliver webhooks
-    // In production, validate using X-Callback-Url matching
-    // For now, accept all webhooks (signature not enforced by MTN)
+    // MTN MoMo does not use header-based HMAC signatures.
+    // Security relies on: (1) HTTPS callback URL, (2) unguessable URL path with
+    // a secret token, and optionally (3) IP whitelisting of MTN callback IPs.
+    //
+    // The webhook_secret should be a random token embedded in the callback URL.
+    // For example, if callback_url = "https://app.com/api/webhooks/mtn_momo/a1b2c3",
+    // then webhook_secret = "a1b2c3" and the incoming request path must contain it.
+    if (!this.mtnConfig.webhook_secret) {
+      console.error('[MTN MoMo] Webhook secret not configured — rejecting webhook. Set MTN_MOMO_WEBHOOK_SECRET to a random token embedded in your callback URL path.');
+      return false;
+    }
+    // Validate that the signature parameter matches the configured secret.
+    // For MTN MoMo, the webhook handler should extract the URL path token
+    // and pass it as the signature parameter.
+    if (signature !== this.mtnConfig.webhook_secret) {
+      console.error('[MTN MoMo] Webhook signature mismatch — rejecting webhook');
+      return false;
+    }
     return true;
   }
 

@@ -674,7 +674,7 @@ model FxRateSnapshot {
   id            String   @id @default(cuid())
   pair          String   // "USD→NGN"
   /// Raw mid-market rate returned by the provider (no spread applied).
-  rate          Float
+  rate          Decimal @db.Decimal(18, 8)
   /// Provider's own quote reference (audit trail).
   providerRef   String?
   fetchedAt     DateTime @default(now())

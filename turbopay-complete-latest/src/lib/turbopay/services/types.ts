@@ -175,6 +175,8 @@ export interface GetWalletResult {
     provider: string;
     status: string;
   } | null;
+  provisioningError: string | null;
+  cardsEnabled: boolean;
   beneficiaries: Array<{
     id: string;
     name: string;
