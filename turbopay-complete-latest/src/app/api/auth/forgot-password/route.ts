@@ -8,7 +8,8 @@ import { z } from "zod";
 const schema = z.object({ identifier: z.string().min(3, "Enter your email, phone, or username") });
 
 export async function POST(req: Request) {
-  const limited = await rateLimit(req, { key: "forgot-password", limit: 5, windowMs: 60 * 60 * 1000 });
+  // TEMP: Increased rate limit for testing — revert to 5/hour after testing
+  const limited = await rateLimit(req, { key: "forgot-password", limit: 100, windowMs: 60 * 1000 });
   if (limited) return limited;
 
   let body; try { body = await req.json(); } catch { return errorJson("Invalid body", 400); }
