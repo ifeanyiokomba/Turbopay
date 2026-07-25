@@ -45,6 +45,7 @@ export async function POST(req: Request) {
           otp,
           userName: user.fullName.split(" ")[0],
         },
+        userId: user.id,
       });
     } catch (e) {
       console.error(`[forgot-password] Failed to send OTP to ${target}:`, e);

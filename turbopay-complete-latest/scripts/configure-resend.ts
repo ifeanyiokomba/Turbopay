@@ -9,12 +9,13 @@
  * Environment variables needed:
  * - DATABASE_URL: Your PostgreSQL connection string
  * - TURBOPAY_PII_KEY: Your encryption key
+ * - RESEND_API_KEY: Your Resend API key
  */
 
 import { config } from "dotenv";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
-import crypto from "crypto";
+import { encryptPii } from "../src/lib/turbopay/crypto";
 
 // Load .env.local first, then .env as fallback
 config({ path: path.resolve(__dirname, "../.env.local") });
@@ -28,24 +29,6 @@ const RESEND_CONFIG = {
   baseUrl: "https://api.resend.com",
   fromEmail: process.env.RESEND_FROM_EMAIL || "TurboPay <noreply@turbopay.okomba.com>",
 };
-
-function encryptPii(data: string): string {
-  const key = process.env.TURBOPAY_PII_KEY;
-  if (!key) throw new Error("TURBOPAY_PII_KEY environment variable is required");
-
-  // Handle hex-encoded keys (64 hex chars = 32 bytes) or raw strings
-  const keyBuffer = key.length === 64
-    ? Buffer.from(key, "hex")
-    : Buffer.from(key, "utf-8");
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", keyBuffer, iv);
-
-  let encrypted = cipher.update(data, "utf-8", "hex");
-  encrypted += cipher.final("hex");
-  const authTag = cipher.getAuthTag();
-
-  return `${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
-}
 
 async function configureResend() {
   console.log("📧 Configuring Resend email provider...\n");

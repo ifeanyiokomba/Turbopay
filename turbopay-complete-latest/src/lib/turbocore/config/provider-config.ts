@@ -166,7 +166,8 @@ class ProviderConfigService {
       const value = JSON.parse(decryptPii(config.credentialsEnc));
       this.credCache.set(id, { value, expiresAt: Date.now() + CRED_CACHE_TTL_MS });
       return value;
-    } catch {
+    } catch (err) {
+      console.error(`[provider-config] Failed to decrypt credentials for config ${id}:`, err);
       return null;
     }
   }
