@@ -170,21 +170,31 @@ class NotificationService {
     }
 
     // All attempts failed.
-    if (lastNotifier) {
-      await audit({
-        action: "NOTIFICATION_FAILED",
-        category: "WALLET",
-        severity: "WARN",
-        metadata: {
-          to: maskRecipient(payload.to, payload.channel),
-          channel: payload.channel,
-          template: payload.template,
-          error: lastResult?.error?.message,
-        },
-      });
+    // Log the failure even when no providers were configured (empty chain).
+    await audit({
+      action: "NOTIFICATION_FAILED",
+      category: "WALLET",
+      severity: "WARN",
+      metadata: {
+        to: maskRecipient(payload.to, payload.channel),
+        channel: payload.channel,
+        template: payload.template,
+        error: lastResult?.error?.message ?? "No notification providers configured",
+        attemptsCount: attempts.length,
+      },
+    });
+
+    // Dev-mode fallback: log OTP codes to console so development isn't blocked.
+    // In production, this should never be relied upon.
+    if (process.env.NODE_ENV !== "production" && payload.template?.startsWith("auth.")) {
+      const vars = payload.variables as Record<string, string> | undefined;
+      const otp = vars?.otp ?? vars?.code;
+      if (otp) {
+        console.log(`[notification:${payload.channel}] → ${payload.to} [${payload.template}] OTP: ${otp} (dev fallback — no provider configured)`);
+      }
     }
 
-    return { delivered: false, error: lastResult?.error?.message ?? "All notification channels failed" };
+    return { delivered: false, error: lastResult?.error?.message ?? "No notification providers configured. Set up Resend/Termii/GetOTP in Admin Console → Platform Settings." };
   }
 
   /** Log a single notification attempt to NotificationLog. */

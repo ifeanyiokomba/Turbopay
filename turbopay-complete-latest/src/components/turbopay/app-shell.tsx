@@ -802,7 +802,7 @@ function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               <div className="space-y-1">
                 {notifications.map((n) => {
                   const isExpanded = expandedId === n.id;
-                  const message = n.body || "";
+                  const message = n.message || "";
                   const isLong = message.length > 80;
                   return (
                     <div
@@ -860,7 +860,7 @@ function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 interface NotificationItem {
   id: string;
   title: string;
-  body: string;
+  message: string;
   read: boolean;
   createdAt: string;
 }

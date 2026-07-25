@@ -15,6 +15,8 @@ import {
   ChevronRight,
   Globe,
   Link2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -78,8 +80,8 @@ const PIE_COLORS = ["var(--primary)", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6"
 export function DashboardView() {
   const user = useApp((s) => s.user) as SessionUser | null;
   const setView = useApp((s) => s.setView);
-  const { data: dash, isLoading: dashLoading, refetch: refetchDash } = useApi<DashboardData>("/api/dashboard");
-  const { data: walletData, refetch: refetchWallet } = useApi<WalletData>("/api/wallet");
+  const { data: dash, isLoading: dashLoading, error: dashError, refetch: refetchDash } = useApi<DashboardData>("/api/dashboard");
+  const { data: walletData, error: walletError, refetch: refetchWallet } = useApi<WalletData>("/api/wallet");
 
   // Pull-to-refresh state
   const [refreshing, setRefreshing] = React.useState(false);
@@ -177,6 +179,23 @@ export function DashboardView() {
               kycTier={user?.kycTier}
               userCountry={user?.country ?? undefined}
             />
+          ) : dashError || walletError ? (
+            <Card className="border-destructive/40 bg-destructive/5">
+              <CardContent className="flex items-center justify-between py-4">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  <div>
+                    <p className="text-sm font-medium">Unable to load wallet</p>
+                    <p className="text-xs text-muted-foreground">
+                      {dashError?.message || walletError?.message || "Something went wrong. Please try again."}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => { refetchDash(); refetchWallet(); }}>
+                  <RefreshCw className="mr-1.5 h-4 w-4" /> Retry
+                </Button>
+              </CardContent>
+            </Card>
           ) : null}
 
           {/* Quick actions - dynamically generated from capabilities */}
