@@ -488,6 +488,10 @@ export class CustomerAuthService {
     this.users.set(targetUser.id, targetUser);
     this.dirtyUsers();
 
+    // Invalidate all existing sessions for this user — security best practice
+    // so that stolen session tokens become useless after a password reset.
+    this.invalidateUserSessions(targetUser.id);
+
     return { success: true, message: 'Password has been reset successfully' };
   }
 
@@ -508,6 +512,10 @@ export class CustomerAuthService {
     user.updated_at = new Date();
     this.users.set(user.id, user);
     this.dirtyUsers();
+
+    // Invalidate all existing sessions for this user — security best practice
+    // so that stolen session tokens become useless after a password change.
+    this.invalidateUserSessions(user.id);
 
     return { success: true, message: 'Password changed successfully' };
   }
@@ -537,6 +545,25 @@ export class CustomerAuthService {
 
   private dirtyUsers(): void { this.persistence?.markDirty('customer_users'); }
   private dirtySessions(): void { this.persistence?.markDirty('customer_sessions'); }
+
+  /**
+   * Invalidate all active sessions for a user.
+   * Called after password changes/resets so that stolen session tokens
+   * become useless immediately.
+   */
+  private invalidateUserSessions(userId: string): void {
+    let invalidated = 0;
+    for (const [token, session] of this.sessions.entries()) {
+      if (session.user_id === userId) {
+        this.sessions.delete(token);
+        invalidated++;
+      }
+    }
+    if (invalidated > 0) {
+      this.dirtySessions();
+      console.log(`[CustomerAuth] Invalidated ${invalidated} session(s) for user ${userId}`);
+    }
+  }
 
   private findUserByEmail(email: string): CustomerUser | undefined {
     for (const user of this.users.values()) {

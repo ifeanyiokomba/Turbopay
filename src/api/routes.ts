@@ -223,6 +223,8 @@ export class TurboPayRoutes {
         method: 'POST',
         path: '/api/v1/auth/customer/kyc',
         description: 'Customer KYC verification',
+        auth: 'customer',
+        requiredBodyFields: ['bvn', 'nin'],
         handler: async (req, res) => {
           const result = await this.customerAuth.verifyKYC({
             user_id: req.user?.id,

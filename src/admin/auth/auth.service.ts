@@ -511,6 +511,10 @@ export class AdminAuthService {
     targetUser.updated_at = new Date();
     this.users.set(targetUser.id, targetUser);
 
+    // Invalidate all existing sessions for this user — security best practice
+    // so that stolen session tokens become useless after a password reset.
+    this.invalidateUserSessions(targetUser.id);
+
     return { success: true, message: 'Password has been reset successfully' };
   }
 
@@ -532,6 +536,10 @@ export class AdminAuthService {
     user.updated_at = new Date();
     this.users.set(user.id, user);
     this.dirtyUsers();
+
+    // Invalidate all existing sessions for this user — security best practice
+    // so that stolen session tokens become useless after a password change.
+    this.invalidateUserSessions(user.id);
 
     return { success: true, message: 'Password changed successfully' };
   }
@@ -555,6 +563,10 @@ export class AdminAuthService {
     user.updated_at = new Date();
     this.users.set(user.id, user);
     this.dirtyUsers();
+
+    // Invalidate all existing sessions for this user — security best practice
+    // so that stolen session tokens become useless after a password reset.
+    this.invalidateUserSessions(user.id);
 
     return { success: true, message: 'Password reset successfully' };
   }
@@ -607,6 +619,25 @@ export class AdminAuthService {
 
   private dirtyUsers(): void { this.persistence?.markDirty('admin_users'); }
   private dirtySessions(): void { this.persistence?.markDirty('admin_sessions'); }
+
+  /**
+   * Invalidate all active sessions for a user.
+   * Called after password changes/resets so that stolen session tokens
+   * become useless immediately.
+   */
+  private invalidateUserSessions(userId: string): void {
+    let invalidated = 0;
+    for (const [token, session] of this.sessions.entries()) {
+      if (session.user_id === userId) {
+        this.sessions.delete(token);
+        invalidated++;
+      }
+    }
+    if (invalidated > 0) {
+      this.dirtySessions();
+      console.log(`[AuthService] Invalidated ${invalidated} session(s) for user ${userId}`);
+    }
+  }
 
   private async hashPassword(password: string, salt: string): Promise<string> {
     return hashWithScrypt(password, salt);

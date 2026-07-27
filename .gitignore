@@ -19,3 +19,5 @@ connection\ string.txt
 .turbo
 coverage/
 turbopay-complete-latest/.git
+data/
+AUDIT_REPORT.md

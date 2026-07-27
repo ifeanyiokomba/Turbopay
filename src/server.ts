@@ -188,7 +188,14 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
     const query = parsedUrl.query;
 
     // Rate limiting — per IP
-    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    // Read the LAST IP in the X-Forwarded-For chain (the one added by the trusted
+    // reverse proxy). Reading the first IP is vulnerable to spoofing: a client can
+    // send `X-Forwarded-For: <attacker-ip>` and the first value would be the
+    // attacker's spoofed IP, bypassing rate limiting and audit trail accuracy.
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const clientIp = forwardedFor
+      ? forwardedFor.split(',').pop().trim()
+      : (req.socket.remoteAddress || 'unknown');
     const isAuthRoute = path.startsWith('/api/v1/auth/');
     const rateLimitMax = isAuthRoute ? AUTH_RATE_LIMIT_MAX : RATE_LIMIT_MAX;
     const rl = checkRateLimit(clientIp, rateLimitMax);
@@ -211,6 +218,16 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
     // Use CORS_ALLOWED_ORIGINS to explicitly permit origins.
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
+    res.setHeader('Access-Control-Max-Age', '86400');
+
+    // Security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    if (config.environment === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
     // Handle preflight
     if (method === 'OPTIONS') {
@@ -223,6 +240,13 @@ function createServer(turbopay: ReturnType<typeof createTurboPay>) {
     const MAX_BODY_SIZE = 1024 * 1024;
     let body = '';
     let bodyTooLarge = false;
+    req.on('error', (err: any) => {
+      console.error(`[Server] Request error: ${err.message}`);
+      if (!res.headersSent) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request error' }));
+      }
+    });
     req.on('data', (chunk: any) => {
       body += chunk;
       if (body.length > MAX_BODY_SIZE) {
