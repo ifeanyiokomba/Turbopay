@@ -130,6 +130,45 @@ describe("Ledger integrity", () => {
     expect(wallet!.balanceKobo).toBe(nairaToKobo(1000)); // restored
   });
 
+  it("reversing the same entry twice is idempotent (no double refund)", async () => {
+    await creditWallet(testWalletId, nairaToKobo(1000), "FUNDING");
+    const debit = await debitWallet(testWalletId, nairaToKobo(400), "AIRTIME");
+
+    // First reversal restores the balance.
+    const first = await reverseEntry(debit.ledgerEntryId, { description: "reversal 1" });
+    let wallet = await db.wallet.findUnique({ where: { id: testWalletId } });
+    expect(wallet!.balanceKobo).toBe(nairaToKobo(1000));
+
+    // Second reversal (e.g. a replayed failure webhook) must NOT re-credit.
+    const second = await reverseEntry(debit.ledgerEntryId, { description: "reversal 2 — replay" });
+    expect(second.reversalEntryId).toBe(first.reversalEntryId);
+    wallet = await db.wallet.findUnique({ where: { id: testWalletId } });
+    expect(wallet!.balanceKobo).toBe(nairaToKobo(1000)); // unchanged
+
+    // Exactly one REVERSAL leg exists, linked back to the original entry.
+    const reversals = await db.ledgerEntry.findMany({
+      where: { refType: "REVERSAL", pairId: debit.ledgerEntryId },
+    });
+    expect(reversals.length).toBe(1);
+    expect(reversals[0].amountKobo).toBe(nairaToKobo(400));
+  });
+
+  it("reverses a credit too, and only once", async () => {
+    await creditWallet(testWalletId, nairaToKobo(1000), "FUNDING");
+    const credit = await creditWallet(testWalletId, nairaToKobo(300), "FUNDING");
+    let wallet = await db.wallet.findUnique({ where: { id: testWalletId } });
+    expect(wallet!.balanceKobo).toBe(nairaToKobo(1300));
+
+    const first = await reverseEntry(credit.ledgerEntryId, { description: "reversal of credit" });
+    wallet = await db.wallet.findUnique({ where: { id: testWalletId } });
+    expect(wallet!.balanceKobo).toBe(nairaToKobo(1000));
+
+    const second = await reverseEntry(credit.ledgerEntryId, { description: "replay" });
+    expect(second.reversalEntryId).toBe(first.reversalEntryId);
+    wallet = await db.wallet.findUnique({ where: { id: testWalletId } });
+    expect(wallet!.balanceKobo).toBe(nairaToKobo(1000)); // unchanged
+  });
+
   it("rejects a debit on a frozen wallet", async () => {
     await creditWallet(testWalletId, nairaToKobo(1000), "FUNDING");
     await db.wallet.update({ where: { id: testWalletId }, data: { status: "FROZEN" } });

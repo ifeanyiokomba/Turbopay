@@ -93,6 +93,37 @@ describe("Webhook Framework", () => {
     expect(r2.body.status).toBe("duplicate");
   });
 
+  it("concurrent duplicate deliveries are deduped (only one processes)", async () => {
+    const providerRef = `MNF-RACE-${Date.now()}`;
+    const rawBody = JSON.stringify({
+      eventData: {
+        transactionReference: providerRef,
+        accountReference: testAccountNumber,
+        amountPaid: "750",
+        paymentReference: `TP-RACE-${Date.now()}`,
+      },
+    });
+    // Fire both deliveries at once — the DB unique constraint on
+    // (provider, providerRef) lets exactly one insert win; the loser must be
+    // acknowledged as a duplicate WITHOUT re-dispatching business logic.
+    const results = await Promise.allSettled([
+      webhookRegistry.process("monnify", { rawBody, headers: { "x-turbopay-demo": "1" }, parsedPayload: JSON.parse(rawBody) }),
+      webhookRegistry.process("monnify", { rawBody, headers: { "x-turbopay-demo": "1" }, parsedPayload: JSON.parse(rawBody) }),
+    ]);
+
+    const bodies = results.map((r) => (r.status === "fulfilled" ? r.value.body.status : "rejected"));
+    expect(bodies).toContain("ok");
+    // Every non-winning attempt is acknowledged as a duplicate — never a
+    // second "ok" (which would re-run the business logic) and never an error.
+    expect(bodies.filter((s) => s === "ok").length).toBe(1);
+    expect(bodies.filter((s) => s === "duplicate").length).toBe(1);
+    expect(bodies).not.toContain("rejected");
+
+    // Only ONE WebhookEvent row exists for this providerRef.
+    const rows = await db.webhookEvent.findMany({ where: { provider: "monnify", providerRef } });
+    expect(rows.length).toBe(1);
+  });
+
   it("monnify handler normalises payload into WALLET_FUNDED event", () => {
     const payload = { eventType: "SUCCESSFUL_COLLECTION", eventData: { transactionReference: "MNF-NORM-1", accountReference: "1234567890", amountPaid: "2000", paymentReference: "TP-NORM-1" } };
     const events = monnifyWebhookHandler.normalize(payload, {});

@@ -114,18 +114,30 @@ async function dispatchEvent(e: { type: string; data: Record<string, unknown> },
         include: { wallet: true },
       });
       if (tx && tx.status === "PENDING") {
-        // Reverse the held debit — refund the wallet.
         const meta = tx.metadata ? JSON.parse(tx.metadata) : {};
+        // ATOMIC: ledger reversal + FAILED status commit in ONE transaction —
+        // a crash between the two would leave a refunded wallet with a
+        // PENDING row. reverseEntry is idempotent (a REVERSAL leg is created
+        // at most once per original entry), so a replayed failure webhook
+        // cannot double-refund.
         if (meta.ledgerEntryId) {
-          await reverseEntry(meta.ledgerEntryId, {
-            description: `Reversal — transfer failed: ${d.reason}`,
-            refId: `REVERSAL-${tx.id}`,
+          await db.$transaction(async (ptx) => {
+            await reverseEntry(
+              meta.ledgerEntryId,
+              { description: `Reversal — transfer failed: ${d.reason}`, refId: `REVERSAL-${tx.id}` },
+              ptx
+            );
+            await ptx.transaction.update({
+              where: { id: tx.id },
+              data: { status: "FAILED" },
+            });
+          }, { timeout: 15000 });
+        } else {
+          await db.transaction.update({
+            where: { id: tx.id },
+            data: { status: "FAILED" },
           });
         }
-        await db.transaction.update({
-          where: { id: tx.id },
-          data: { status: "FAILED" },
-        });
         await notify.sendInApp({
           userId: tx.userId,
           type: "TRANSACTION",
@@ -151,25 +163,30 @@ async function dispatchEvent(e: { type: string; data: Record<string, unknown> },
         if (user) {
           const wallet = await db.wallet.findUnique({ where: { userId: user.id } });
           if (wallet) {
-            const { creditWallet } = await import("@/lib/turbopay/ledger");
-            await creditWallet(wallet.id, d.amountMinor, "FUNDING", {
-              refId: d.providerRef,
-              description: `Card funding via ${d.provider}`,
-            });
-            await db.transaction.create({
-              data: {
-                reference: `TP-WEBHOOK-${d.providerRef.slice(-12)}`,
-                userId: user.id,
-                walletId: wallet.id,
-                type: "FUNDING",
-                direction: "CREDIT",
-                amountKobo: d.amountMinor,
-                status: "SUCCESS",
-                provider: d.provider,
-                providerRef: d.providerRef,
+            // ATOMIC: ledger credit + transaction record commit in ONE
+            // transaction — a crash between the two would leave a credited
+            // wallet with no transaction history.
+            const { creditWalletInTx } = await import("@/lib/turbopay/ledger");
+            await db.$transaction(async (tx) => {
+              await creditWalletInTx(tx, wallet.id, d.amountMinor, "FUNDING", {
+                refId: d.providerRef,
                 description: `Card funding via ${d.provider}`,
-              },
-            });
+              });
+              await tx.transaction.create({
+                data: {
+                  reference: `TP-WEBHOOK-${d.providerRef.slice(-12)}`,
+                  userId: user.id,
+                  walletId: wallet.id,
+                  type: "FUNDING",
+                  direction: "CREDIT",
+                  amountKobo: d.amountMinor,
+                  status: "SUCCESS",
+                  provider: d.provider,
+                  providerRef: d.providerRef,
+                  description: `Card funding via ${d.provider}`,
+                },
+              });
+            }, { timeout: 15000 });
             await notify.sendInApp({
               userId: user.id,
               type: "TRANSACTION",
@@ -222,29 +239,36 @@ async function dispatchEvent(e: { type: string; data: Record<string, unknown> },
         where: { reference: d.providerRef },
       });
       if (bill && bill.status === "PENDING") {
-        if (bill.transactionId) {
-          const tx = await db.transaction.findUnique({
-            where: { id: bill.transactionId },
-            select: { id: true, metadata: true, amountKobo: true },
-          });
-          if (tx) {
-            const meta = tx.metadata ? JSON.parse(tx.metadata) : {};
-            if (meta.ledgerEntryId) {
-              await reverseEntry(meta.ledgerEntryId, {
-                description: `Reversal — bill payment failed: ${d.reason}`,
-                refId: `REVERSAL-${tx.id}`,
+        // ATOMIC: ledger reversal + Transaction status + BillPayment status
+        // commit in ONE transaction — a crash mid-way would leave a refunded
+        // wallet with a PENDING bill row. reverseEntry is idempotent, so a
+        // replayed failure webhook cannot double-refund.
+        await db.$transaction(async (ptx) => {
+          if (bill.transactionId) {
+            const tx = await ptx.transaction.findUnique({
+              where: { id: bill.transactionId },
+              select: { id: true, metadata: true, amountKobo: true },
+            });
+            if (tx) {
+              const meta = tx.metadata ? JSON.parse(tx.metadata) : {};
+              if (meta.ledgerEntryId) {
+                await reverseEntry(
+                  meta.ledgerEntryId,
+                  { description: `Reversal — bill payment failed: ${d.reason}`, refId: `REVERSAL-${tx.id}` },
+                  ptx
+                );
+              }
+              await ptx.transaction.update({
+                where: { id: tx.id },
+                data: { status: "FAILED" },
               });
             }
-            await db.transaction.update({
-              where: { id: tx.id },
-              data: { status: "FAILED" },
-            });
           }
-        }
-        await db.billPayment.update({
-          where: { id: bill.id },
-          data: { status: "FAILED" },
-        });
+          await ptx.billPayment.update({
+            where: { id: bill.id },
+            data: { status: "FAILED" },
+          });
+        }, { timeout: 15000 });
         await notify.sendInApp({
           userId: bill.userId,
           type: "TRANSACTION",

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { creditWallet, creditCurrencyWallet } from "@/lib/turbopay/ledger";
+import { creditWalletInTx, creditCurrencyWalletInTx } from "@/lib/turbopay/ledger";
 import { createTransactionRecord } from "@/lib/turbopay/wallet";
 import { audit } from "@/lib/turbopay/audit";
 import { kycLimits } from "@/lib/turbocore/config/kyc-limits";
@@ -65,24 +65,31 @@ export async function processFunding(input: {
       return { credited: false, transactionId: null, reason: "WALLET_FROZEN_HELD" };
     }
 
-    const credit = await creditCurrencyWallet(currencyWallet.id, input.amountKobo, targetCurrency, "FUNDING", {
-      description: input.description ?? `Wallet funding via virtual account (${targetCurrency})`,
-    });
-
-    const tx = await createTransactionRecord({
-      userId: va.userId,
-      walletId: wallet.id,
-      type: "FUNDING",
-      direction: "CREDIT",
-      amountKobo: input.amountKobo,
-      description: input.description ?? `Wallet funding via virtual account (${targetCurrency})`,
-      counterpartyName: va.bankName,
-      counterpartyAccount: va.accountNumber,
-      counterpartyBank: va.bankName,
-      provider,
-      providerRef: input.providerRef,
-      metadata: { paymentReference: input.paymentReference, ledgerEntryId: credit.ledgerEntryId, currency: targetCurrency },
-    });
+    // ATOMIC: ledger credit + transaction record commit in ONE transaction.
+    // A crash between the two would leave a credited wallet with no history.
+    const { tx, credit } = await db.$transaction(async (t) => {
+      const credit = await creditCurrencyWalletInTx(t, currencyWallet.id, input.amountKobo, targetCurrency, "FUNDING", {
+        description: input.description ?? `Wallet funding via virtual account (${targetCurrency})`,
+      });
+      const tx = await createTransactionRecord(
+        {
+          userId: va.userId,
+          walletId: wallet.id,
+          type: "FUNDING",
+          direction: "CREDIT",
+          amountKobo: input.amountKobo,
+          description: input.description ?? `Wallet funding via virtual account (${targetCurrency})`,
+          counterpartyName: va.bankName,
+          counterpartyAccount: va.accountNumber,
+          counterpartyBank: va.bankName,
+          provider,
+          providerRef: input.providerRef,
+          metadata: { paymentReference: input.paymentReference, ledgerEntryId: credit.ledgerEntryId, currency: targetCurrency },
+        },
+        t
+      );
+      return { tx, credit };
+    }, { timeout: 15000 });
 
     await audit({
       userId: va.userId,
@@ -137,24 +144,31 @@ export async function processFunding(input: {
     return { credited: false, transactionId: null, reason: "KYC_BALANCE_CAP_EXCEEDED" };
   }
 
-  const credit = await creditWallet(wallet.id, input.amountKobo, "FUNDING", {
-    description: input.description ?? "Wallet funding via virtual account",
-  });
-
-  const tx = await createTransactionRecord({
-    userId: va.userId,
-    walletId: wallet.id,
-    type: "FUNDING",
-    direction: "CREDIT",
-    amountKobo: input.amountKobo,
-    description: input.description ?? "Wallet funding via virtual account",
-    counterpartyName: va.bankName,
-    counterpartyAccount: va.accountNumber,
-    counterpartyBank: va.bankName,
-    provider,
-    providerRef: input.providerRef,
-    metadata: { paymentReference: input.paymentReference, ledgerEntryId: credit.ledgerEntryId },
-  });
+  // ATOMIC: ledger credit + transaction record commit in ONE transaction.
+  // A crash between the two would leave a credited wallet with no history.
+  const { tx, credit } = await db.$transaction(async (t) => {
+    const credit = await creditWalletInTx(t, wallet.id, input.amountKobo, "FUNDING", {
+      description: input.description ?? "Wallet funding via virtual account",
+    });
+    const tx = await createTransactionRecord(
+      {
+        userId: va.userId,
+        walletId: wallet.id,
+        type: "FUNDING",
+        direction: "CREDIT",
+        amountKobo: input.amountKobo,
+        description: input.description ?? "Wallet funding via virtual account",
+        counterpartyName: va.bankName,
+        counterpartyAccount: va.accountNumber,
+        counterpartyBank: va.bankName,
+        provider,
+        providerRef: input.providerRef,
+        metadata: { paymentReference: input.paymentReference, ledgerEntryId: credit.ledgerEntryId },
+      },
+      t
+    );
+    return { tx, credit };
+  }, { timeout: 15000 });
 
   await audit({
     userId: va.userId,

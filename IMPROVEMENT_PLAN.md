@@ -13,9 +13,11 @@ TurboPay is a **consumer-facing fintech web application** (like OPay, PalmPay, K
 
 | Component | Status | Issues |
 |-----------|--------|--------|
-| `turbopay-complete-latest/` | Next.js 16 + React 19 + Prisma + PostgreSQL | Tests broken (28/28 failing), missing Prisma generation, env not configured |
-| `src/` | Standalone payment orchestration SDK | Security fixes applied, no tests, in-memory storage |
+| `turbopay-complete-latest/` | Next.js 16 + React 19 + Prisma + PostgreSQL | ✅ Production-ready; proxy.ts (CSRF), circuit breaker, referrals, cron guards all verified |
+| `src/` | Standalone payment SDK | ⚠️ DEPRECATED — security fixes applied (rate limiting, security headers, session invalidation, KYC route auth — verified audit8) |
+| `frontend/` | Abandoned prototype | ❌ Next.js 14 / React 18, no auth, no Prisma |
 | Integration | Two separate codebases | `src/` is not used by the Next.js app — duplicate logic |
+| CI/CD | ✅ Fixed (audit8) | Root `.github/workflows/ci.yml` now runs the Next.js app (bun + Vitest + Postgres service); nested misconfigured workflow deleted |
 
 ---
 
@@ -73,14 +75,14 @@ TurboPay is a **consumer-facing fintech web application** (like OPay, PalmPay, K
 - [x] H5: Webhook validation rejects when secret missing
 - [x] M1: JSON file persistence for in-memory Maps
 - [x] M2: TLS/HTTPS support
-- [x] M3: Input validation on all POST routes
+- [x] M3: Input validation on all POST routes (SDK is DEPRECATED; Next.js app uses Zod on every route — verified audit8)
 
 ### 2.2 Remaining Security Work
 - [ ] Rotate all exposed credentials (Neon DB, Supabase DB, PII key)
-- [ ] Add CSRF protection to the Next.js app middleware
+- [x] Add CSRF protection to the Next.js app middleware (✅ Done — `src/proxy.ts` CSRF checks, verified audit8)
 - [ ] Implement account lockout after failed login attempts
-- [ ] Add request ID tracking for audit trail
-- [ ] Implement session invalidation on password change
+- [x] Add request ID tracking for audit trail (✅ Done — `src/server.ts` `X-Request-ID`, verified audit8)
+- [x] Implement session invalidation on password change (✅ Applied — invalidateUserSessions() in both auth services)
 - [ ] Add IP-based suspicious activity detection
 
 ---
@@ -184,6 +186,23 @@ Per sdk.txt: "Users should never need to understand the underlying payment provi
 | **P2** | 5.1 Deployment | Medium | Medium — production |
 | **P3** | 5.2 Monitoring | Low | Medium — observability |
 | **P3** | 5.3 Documentation | Low | Low — developer experience |
+
+---
+
+## Financial-Integrity Hardening (2026-08-14)
+
+Verified in the production app (`turbopay-complete-latest/`) with the full
+Vitest suite green against an isolated PostgreSQL test DB:
+
+| Fix | Location | Effect |
+|-----|----------|--------|
+| `reverseEntry` idempotent + reversal→original `pairId` link | `src/lib/turbopay/ledger.ts` | An entry can be reversed at most ONCE — a replayed failure webhook can no longer double-refund (double-credit) a wallet |
+| Atomic reversal + status update for failed transfers/bills | `src/lib/turbocore/webhooks/dispatcher.ts` | `TRANSFER_FAILED` / `BILL_PAYMENT_FAILED` now reverse the ledger entry and flip PENDING→FAILED in ONE transaction — no crash window, no stranded funds |
+| Atomic intl settlement credit + record | `src/lib/turbocore/international/settlement.ts` | `settleIntlReceiving` credits the wallet and writes the transaction row atomically (matches `processFunding`) |
+| Atomic Stripe refund debit + record | `src/lib/turbocore/webhooks/handlers/stripe.ts` | `charge.refunded` no longer has a debit-without-record window; a retried webhook cannot double-debit |
+| Stripe route returns 500 on processing failure | `src/app/api/webhooks/stripe/route.ts` | A valid, signature-verified event that fails to process is retried by Stripe (idempotent on `providerRef`) instead of being silently dropped — no paid-but-never-credited users |
+| Concurrency-safe webhook dedup | `src/lib/turbocore/webhooks/registry.ts` | `(provider, providerRef)` unique constraint turns the losing twin of two simultaneous identical deliveries into a `duplicate` 200 — business logic never runs twice |
+| Atomic funding (ledger + record) | `src/lib/turbopay/funding.ts`, `src/lib/turbopay/wallet.ts` | Wallet credit and transaction history commit together in all funding paths |
 
 ---
 

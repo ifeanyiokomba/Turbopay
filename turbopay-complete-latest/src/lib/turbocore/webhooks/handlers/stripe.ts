@@ -15,7 +15,7 @@ import { db } from "@/lib/db";
 import { processFunding } from "@/lib/turbopay/funding";
 import { audit } from "@/lib/turbopay/audit";
 import { decryptPii } from "@/lib/turbopay/crypto";
-import { debitWallet } from "@/lib/turbopay/ledger";
+import { debitWalletInTx } from "@/lib/turbopay/ledger";
 import { generateReference } from "@/lib/turbopay/reference";
 
 interface StripePaymentIntent {
@@ -82,35 +82,29 @@ async function handlePaymentIntentSucceeded(
     return { processed: false, reason: "No accountNumber in payment metadata" };
   }
 
-  try {
-    const result = await processFunding({
-      accountNumber,
-      amountKobo: pi.amount,
-      providerRef: pi.id,
-      paymentReference: pi.id,
-      description: `Stripe wallet funding — ${pi.currency.toUpperCase()}`,
-      provider: "stripe",
-    });
+  const result = await processFunding({
+    accountNumber,
+    amountKobo: pi.amount,
+    providerRef: pi.id,
+    paymentReference: pi.id,
+    description: `Stripe wallet funding — ${pi.currency.toUpperCase()}`,
+    provider: "stripe",
+  });
 
-    if (result.credited) {
-      await audit({
-        action: "STRIPE_FUNDING_PROCESSED",
-        category: "WALLET",
-        severity: "INFO",
-        metadata: { paymentIntentId: pi.id, amount: pi.amount, currency: pi.currency, accountNumber },
-      });
-    }
-
-    return { processed: result.credited, reason: result.reason };
-  } catch (e) {
+  // A duplicate delivery is a SUCCESS — the wallet was already credited.
+  if (result.credited || result.reason === "DUPLICATE_WEBHOOK") {
     await audit({
-      action: "STRIPE_FUNDING_FAILED",
+      action: "STRIPE_FUNDING_PROCESSED",
       category: "WALLET",
-      severity: "ERROR",
-      metadata: { paymentIntentId: pi.id, error: e instanceof Error ? e.message : String(e) },
+      severity: "INFO",
+      metadata: { paymentIntentId: pi.id, amount: pi.amount, currency: pi.currency, accountNumber, duplicate: result.reason === "DUPLICATE_WEBHOOK" },
     });
-    return { processed: false, reason: e instanceof Error ? e.message : "Processing error" };
+    return { processed: true };
   }
+
+  // Deliberate hold (frozen wallet / KYC cap) — acknowledge without retry;
+  // the funds are not lost, they are held for review.
+  return { processed: false, reason: result.reason };
 }
 
 async function handlePaymentIntentFailed(
@@ -153,37 +147,42 @@ async function handleChargeRefunded(
 
   const refundAmount = charge.amount_refunded || charge.amount;
 
-  // Debit the wallet through the ledger engine, then create the Transaction
-  // record — all inside one Prisma transaction for atomicity.
-  const { ledgerEntryId } = await debitWallet(
-    origTx.walletId,
-    refundAmount,
-    "REVERSAL",
-    {
-      refId: charge.id,
-      userId: origTx.userId,
-      description: `Refund for Stripe payment ${paymentIntentId}`,
-    },
-  );
-
-  await db.transaction.create({
-    data: {
-      reference: generateReference("REF"),
-      userId: origTx.userId,
-      walletId: origTx.walletId,
-      type: "REFUND",
-      direction: "DEBIT",
-      amountKobo: refundAmount,
-      feeKobo: 0,
-      status: "SUCCESS",
-      counterpartyName: "Stripe Refund",
-      counterpartyAccount: "",
-      counterpartyBank: "Stripe",
-      provider: "stripe",
-      providerRef: charge.id,
-      description: `Refund for Stripe payment ${paymentIntentId}`,
-    },
-  });
+  // ATOMIC: ledger debit + REFUND transaction record commit in ONE
+  // transaction — a crash between the two would leave a debited wallet with
+  // no record, and a retried charge.refunded webhook (idempotency check on
+  // providerRef=charge.id would MISS the row) would double-debit.
+  const { ledgerEntryId } = await db.$transaction(async (tx) => {
+    const debit = await debitWalletInTx(
+      tx,
+      origTx.walletId,
+      refundAmount,
+      "REVERSAL",
+      {
+        refId: charge.id,
+        userId: origTx.userId,
+        description: `Refund for Stripe payment ${paymentIntentId}`,
+      },
+    );
+    await tx.transaction.create({
+      data: {
+        reference: generateReference("REF"),
+        userId: origTx.userId,
+        walletId: origTx.walletId,
+        type: "REFUND",
+        direction: "DEBIT",
+        amountKobo: refundAmount,
+        feeKobo: 0,
+        status: "SUCCESS",
+        counterpartyName: "Stripe Refund",
+        counterpartyAccount: "",
+        counterpartyBank: "Stripe",
+        provider: "stripe",
+        providerRef: charge.id,
+        description: `Refund for Stripe payment ${paymentIntentId}`,
+      },
+    });
+    return debit;
+  }, { timeout: 15000 });
 
   await audit({
     action: "STRIPE_REFUND_PROCESSED",
@@ -220,35 +219,28 @@ async function handleCheckoutSessionCompleted(
     accountNumber = va.accountNumber;
   }
 
-  try {
-    const result = await processFunding({
-      accountNumber,
-      amountKobo: session.amount_total ?? 0,
-      providerRef: session.id,
-      paymentReference: session.id,
-      description: `Stripe Checkout — ${(session.currency ?? "NGN").toUpperCase()}`,
-      provider: "stripe",
-    });
+  const result = await processFunding({
+    accountNumber,
+    amountKobo: session.amount_total ?? 0,
+    providerRef: session.id,
+    paymentReference: session.id,
+    description: `Stripe Checkout — ${(session.currency ?? "NGN").toUpperCase()}`,
+    provider: "stripe",
+  });
 
-    if (result.credited) {
-      await audit({
-        action: "STRIPE_CHECKOUT_PROCESSED",
-        category: "WALLET",
-        severity: "INFO",
-        metadata: { sessionId: session.id, amount: session.amount_total, currency: session.currency },
-      });
-    }
-
-    return { processed: result.credited, reason: result.reason };
-  } catch (e) {
+  // A duplicate delivery is a SUCCESS — the wallet was already credited.
+  if (result.credited || result.reason === "DUPLICATE_WEBHOOK") {
     await audit({
-      action: "STRIPE_CHECKOUT_FAILED",
+      action: "STRIPE_CHECKOUT_PROCESSED",
       category: "WALLET",
-      severity: "ERROR",
-      metadata: { sessionId: session.id, error: e instanceof Error ? e.message : String(e) },
+      severity: "INFO",
+      metadata: { sessionId: session.id, amount: session.amount_total, currency: session.currency, duplicate: result.reason === "DUPLICATE_WEBHOOK" },
     });
-    return { processed: false, reason: e instanceof Error ? e.message : "Processing error" };
+    return { processed: true };
   }
+
+  // Deliberate hold (frozen wallet / KYC cap) — acknowledge without retry.
+  return { processed: false, reason: result.reason };
 }
 
 async function handleSetupIntentSucceeded(

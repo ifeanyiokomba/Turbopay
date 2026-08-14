@@ -10,7 +10,7 @@
  */
 
 import { db } from "@/lib/db";
-import { creditWallet } from "@/lib/turbopay/ledger";
+import { creditWalletInTx } from "@/lib/turbopay/ledger";
 import { createTransactionRecord } from "@/lib/turbopay/wallet";
 import { audit } from "@/lib/turbopay/audit";
 import { providers } from "@/lib/turbocore/providers/registry";
@@ -80,35 +80,40 @@ export async function settleIntlReceiving(event: IntlReceivingEvent): Promise<Se
     return { settled: false, reason: "KYC_BALANCE_CAP_EXCEEDED" };
   }
 
-  // 3. Credit the wallet.
-  const credit = await creditWallet(wallet.id, event.destinationAmountMinor, "FUNDING", {
-    description: `International transfer from ${event.sender.name} (${event.sender.country})`,
-  });
-
-  // 4. Transaction record.
-  const tx = await createTransactionRecord({
-    userId: va.userId,
-    walletId: wallet.id,
-    type: "FUNDING",
-    direction: "CREDIT",
-    amountKobo: event.destinationAmountMinor,
-    description: `International transfer from ${event.sender.name} (${event.sender.country})`,
-    counterpartyName: event.sender.name,
-    counterpartyAccount: event.beneficiaryAccount,
-    counterpartyBank: "International",
-    provider: "intl-receiving",
-    providerRef: event.providerRef,
-    metadata: {
-      sourceCurrency: event.sourceCurrency,
-      sourceAmountMinor: event.sourceAmountMinor,
-      destinationCurrency: event.destinationCurrency,
-      destinationAmountMinor: event.destinationAmountMinor,
-      rate: event.rate,
-      feesMinor: event.feesMinor,
-      senderCountry: event.sender.country,
-      ledgerEntryId: credit.ledgerEntryId,
-    },
-  });
+  // 3+4. ATOMIC: ledger credit + transaction record commit in ONE transaction.
+  //    A crash between the two would leave a credited wallet with no history.
+  const { credit, tx } = await db.$transaction(async (t) => {
+    const credit = await creditWalletInTx(t, wallet.id, event.destinationAmountMinor, "FUNDING", {
+      description: `International transfer from ${event.sender.name} (${event.sender.country})`,
+    });
+    const tx = await createTransactionRecord(
+      {
+        userId: va.userId,
+        walletId: wallet.id,
+        type: "FUNDING",
+        direction: "CREDIT",
+        amountKobo: event.destinationAmountMinor,
+        description: `International transfer from ${event.sender.name} (${event.sender.country})`,
+        counterpartyName: event.sender.name,
+        counterpartyAccount: event.beneficiaryAccount,
+        counterpartyBank: "International",
+        provider: "intl-receiving",
+        providerRef: event.providerRef,
+        metadata: {
+          sourceCurrency: event.sourceCurrency,
+          sourceAmountMinor: event.sourceAmountMinor,
+          destinationCurrency: event.destinationCurrency,
+          destinationAmountMinor: event.destinationAmountMinor,
+          rate: event.rate,
+          feesMinor: event.feesMinor,
+          senderCountry: event.sender.country,
+          ledgerEntryId: credit.ledgerEntryId,
+        },
+      },
+      t
+    );
+    return { credit, tx };
+  }, { timeout: 15000 });
 
   // 5. The WebhookRegistry already manages the WebhookEvent lifecycle
   //    (creates it in process() before dispatching). Do NOT create a

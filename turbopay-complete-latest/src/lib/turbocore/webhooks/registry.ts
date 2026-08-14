@@ -258,16 +258,35 @@ class WebhookRegistryImpl {
     const signatureHeader =
       Object.entries(input.headers).find(([k]) => k.toLowerCase().includes("signature"))?.[1] ?? null;
 
-    const event = await db.webhookEvent.create({
-      data: {
-        provider,
-        providerRef,
-        payload: input.rawBody.slice(0, 16384), // cap storage
-        signature: signatureHeader,
-        status: "PENDING",
-        receivedAt: new Date(),
-      },
-    }).catch(() => null); // tolerate a missing table in older DBs
+    // ── Concurrency-safe dedup ──────────────────────────────────────
+    // Two identical webhooks can arrive simultaneously. Both pass the
+    // findFirst dedup above (neither row is PROCESSED yet), then both attempt
+    // create. The DB unique constraint on (provider, providerRef) lets only
+    // one win; the loser hits P2002 and MUST NOT continue — otherwise the
+    // business logic (e.g. wallet credit) runs twice. Other failures (e.g.
+    // missing table in an older DB) are tolerated: the event is still
+    // normalised + dispatched as before.
+    let event: { id: string } | null = null;
+    try {
+      event = await db.webhookEvent.create({
+        data: {
+          provider,
+          providerRef,
+          payload: input.rawBody.slice(0, 16384), // cap storage
+          signature: signatureHeader,
+          status: "PENDING",
+          receivedAt: new Date(),
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        // Concurrent twin won the insert — this event is already being
+        // processed. Acknowledge as duplicate WITHOUT re-dispatching.
+        return { status: 200, body: { status: "duplicate", processed: true } };
+      }
+      // Missing table (legacy DB) or transient failure — continue processing.
+      event = null;
+    }
 
     try {
       // 4. Normalise into domain events (pure function — no side effects)

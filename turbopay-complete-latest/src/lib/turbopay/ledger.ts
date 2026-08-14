@@ -140,17 +140,33 @@ export async function creditWallet(
   opts: { refId?: string | null; description?: string | null; currency?: string } = {}
 ): Promise<CreditResult> {
   return db.$transaction(async (tx) => {
-    const res = await postCreditLeg(tx, {
-      walletId,
-      entryType: "CREDIT",
-      amountKobo,
-      currency: opts.currency,
-      refType,
-      refId: opts.refId ?? null,
-      description: opts.description ?? null,
-    });
-    return { ledgerEntryId: res.entryId, balanceAfterKobo: res.balanceAfterKobo };
+    return creditWalletInTx(tx, walletId, amountKobo, refType, opts);
   }, { timeout: 15000 });
+}
+
+/**
+ * Credit a wallet INSIDE a caller-supplied transaction so the credit + any
+ * other writes (e.g. a Transaction record) commit atomically. Used by
+ * funding orchestration to guarantee the ledger entry and the transaction
+ * history cannot drift apart. Rejects frozen wallets.
+ */
+export async function creditWalletInTx(
+  tx: Tx,
+  walletId: string,
+  amountKobo: number,
+  refType: RefType,
+  opts: { refId?: string | null; description?: string | null; currency?: string } = {}
+): Promise<CreditResult> {
+  const res = await postCreditLeg(tx, {
+    walletId,
+    entryType: "CREDIT",
+    amountKobo,
+    currency: opts.currency,
+    refType,
+    refId: opts.refId ?? null,
+    description: opts.description ?? null,
+  });
+  return { ledgerEntryId: res.entryId, balanceAfterKobo: res.balanceAfterKobo };
 }
 
 export interface DebitResult {
@@ -175,20 +191,38 @@ export async function debitWallet(
   opts: { refId?: string | null; description?: string | null; userId?: string; currency?: string } = {}
 ): Promise<DebitResult> {
   return db.$transaction(async (tx) => {
-    if (opts.userId) {
-      await acquireUserDebitLock(tx, opts.userId);
-    }
-    const res = await postDebitLeg(tx, {
-      walletId,
-      entryType: "DEBIT",
-      amountKobo,
-      currency: opts.currency,
-      refType,
-      refId: opts.refId ?? null,
-      description: opts.description ?? null,
-    });
-    return { ledgerEntryId: res.entryId, balanceAfterKobo: res.balanceAfterKobo };
+    return debitWalletInTx(tx, walletId, amountKobo, refType, opts);
   }, { timeout: 15000 });
+}
+
+/**
+ * Debit a wallet INSIDE a caller-supplied transaction so the debit + any
+ * other writes (e.g. a Transaction record) commit atomically. Used by
+ * refund/reversal orchestration to guarantee the ledger entry and the
+ * transaction history cannot drift apart. Concurrency-safe (conditional
+ * UPDATE + optional per-user advisory lock); throws INSUFFICIENT_FUNDS or
+ * WALLET_FROZEN atomically if the debit cannot proceed.
+ */
+export async function debitWalletInTx(
+  tx: Tx,
+  walletId: string,
+  amountKobo: number,
+  refType: RefType,
+  opts: { refId?: string | null; description?: string | null; userId?: string; currency?: string } = {}
+): Promise<DebitResult> {
+  if (opts.userId) {
+    await acquireUserDebitLock(tx, opts.userId);
+  }
+  const res = await postDebitLeg(tx, {
+    walletId,
+    entryType: "DEBIT",
+    amountKobo,
+    currency: opts.currency,
+    refType,
+    refId: opts.refId ?? null,
+    description: opts.description ?? null,
+  });
+  return { ledgerEntryId: res.entryId, balanceAfterKobo: res.balanceAfterKobo };
 }
 
 export interface TransferResult {
@@ -285,6 +319,23 @@ export async function reverseEntry(
     if (!original) throw new LedgerError("ENTRY_NOT_FOUND", "Original ledger entry not found");
     if (original.refType === "REVERSAL") throw new LedgerError("CANNOT_REVERSE_REVERSAL", "Cannot reverse a reversal");
 
+    // ── Idempotency: an entry may only be reversed ONCE. ─────────────
+    // Every reversal links back to its original via `pairId`. If a REVERSAL
+    // leg already exists for this entry, the funds were already returned —
+    // return the existing reversal instead of posting a SECOND opposing leg.
+    // Without this guard, a replayed failure webhook (or a retried reversal)
+    // would double-credit (or double-debit) the wallet.
+    const existingReversal = await tx.ledgerEntry.findFirst({
+      where: { refType: "REVERSAL", pairId: originalEntryId },
+      select: { id: true, balanceAfterKobo: true },
+    });
+    if (existingReversal) {
+      return {
+        reversalEntryId: existingReversal.id,
+        balanceAfterKobo: existingReversal.balanceAfterKobo,
+      };
+    }
+
     // Opposite leg: if original was DEBIT, reversal is CREDIT, and vice-versa.
     const oppositeType: EntryType = original.entryType === "DEBIT" ? "CREDIT" : "DEBIT";
     const leg =
@@ -295,6 +346,7 @@ export async function reverseEntry(
             amountKobo: original.amountKobo,
             refType: "REVERSAL",
             refId: opts.refId ?? null,
+            pairId: originalEntryId, // link reversal → original for idempotency + audit
             description: opts.description ?? `Reversal of ${original.id}`,
           })
         : await postDebitLeg(tx, {
@@ -303,6 +355,7 @@ export async function reverseEntry(
             amountKobo: original.amountKobo,
             refType: "REVERSAL",
             refId: opts.refId ?? null,
+            pairId: originalEntryId, // link reversal → original for idempotency + audit
             description: opts.description ?? `Reversal of ${original.id}`,
           });
 
@@ -421,17 +474,32 @@ export async function creditCurrencyWallet(
   opts: { refId?: string | null; description?: string | null } = {}
 ): Promise<CurrencyCreditResult> {
   return db.$transaction(async (tx) => {
-    const res = await postCreditCurrencyLeg(tx, {
-      walletId,
-      entryType: "CREDIT",
-      amountMinor,
-      currency,
-      refType,
-      refId: opts.refId ?? null,
-      description: opts.description ?? null,
-    });
-    return { ledgerEntryId: res.entryId, balanceAfter: res.balanceAfter };
+    return creditCurrencyWalletInTx(tx, walletId, amountMinor, currency, refType, opts);
   });
+}
+
+/**
+ * Credit a CurrencyWallet inside a caller-supplied transaction so the credit
+ * + any other writes (e.g. a Transaction record) commit atomically.
+ */
+export async function creditCurrencyWalletInTx(
+  tx: Tx,
+  walletId: string,
+  amountMinor: number,
+  currency: string,
+  refType: RefType,
+  opts: { refId?: string | null; description?: string | null } = {}
+): Promise<CurrencyCreditResult> {
+  const res = await postCreditCurrencyLeg(tx, {
+    walletId,
+    entryType: "CREDIT",
+    amountMinor,
+    currency,
+    refType,
+    refId: opts.refId ?? null,
+    description: opts.description ?? null,
+  });
+  return { ledgerEntryId: res.entryId, balanceAfter: res.balanceAfter };
 }
 
 export interface CurrencyDebitResult {

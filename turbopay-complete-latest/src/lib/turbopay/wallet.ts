@@ -142,8 +142,14 @@ export interface CreateTxInput {
   metadata?: Record<string, unknown> | null;
 }
 
-export async function createTransactionRecord(input: CreateTxInput) {
-  return db.transaction.create({
+/**
+ * Create a Transaction record. When `tx` is provided the insert runs inside
+ * the caller's Prisma transaction — allowing the ledger credit + the
+ * transaction record to commit atomically (no drift window).
+ */
+export async function createTransactionRecord(input: CreateTxInput, tx?: Parameters<Parameters<typeof db["$transaction"]>[0]>[0]) {
+  const client = tx ?? db;
+  return client.transaction.create({
     data: {
       reference: generateReference("TP"),
       userId: input.userId,

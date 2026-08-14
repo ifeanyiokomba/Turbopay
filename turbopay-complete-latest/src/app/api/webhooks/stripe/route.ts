@@ -70,10 +70,14 @@ export async function POST(req: Request) {
       },
     });
 
-    // Return 200 to prevent Stripe retries for processing errors
-    // (the event was valid, just failed to process).
+    // A valid, signature-verified event that FAILED to process must be
+    // signalled with a 5xx so Stripe retries it. Returning 200 here would
+    // silently drop the credit: the user paid, the wallet was never funded,
+    // and Stripe would never retry. Processing is idempotent on providerRef
+    // (processFunding / charge.refunded dedup), so a retry cannot
+    // double-credit or double-debit.
     return new Response(JSON.stringify({ received: true, processed: false }), {
-      status: 200,
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
