@@ -18,20 +18,20 @@
 ## Phase 1: Foundation (Week 1-2) — "Make it work"
 
 ### 1.1 Consolidate Codebases
-- [ ] Deprecate `src/` SDK directory
+- [x] Deprecate `src/` SDK directory (✅ `src/DEPRECATED.md` created)
 - [ ] Move provider adapters from `src/adapters/` into `turbopay-complete-latest/src/lib/turbocore/providers/`
 - [ ] Move ledger service into `turbopay-complete-latest/src/lib/turbopay/ledger.ts`
 - [ ] Delete duplicate code, keep the Next.js app as single source of truth
 
 ### 1.2 Fix Test Infrastructure
-- [ ] Delete root `jest.config.js` (conflicts with Vitest)
+- [x] Delete root `jest.config.js` (✅ already deleted)
 - [ ] Run `npx prisma generate` in `turbopay-complete-latest/`
 - [ ] Set up Testcontainers for CI (Docker-based Postgres per test run)
 - [ ] Fix all 28 failing test suites
 - [ ] Target: 100% test pass rate
 
 ### 1.3 Environment Configuration
-- [ ] Create comprehensive `.env.example` with all required vars
+- [x] Create comprehensive `.env.example` with all required vars (✅ `turbopay-complete-latest/.env.example` created)
 - [ ] Add `MASTER_ADMIN_EMAIL`, `MASTER_ADMIN_PASSWORD`, `JWT_SECRET` to template
 - [ ] Set up `.env.test` with test database URL
 - [ ] Document all environment variables
@@ -184,10 +184,10 @@
 - [ ] Lazy loading for non-critical views
 
 ### 5.4 CI/CD
-- [ ] GitHub Actions pipeline
-- [ ] Automated tests on PR
-- [ ] Type checking on PR
-- [ ] Linting on PR
+- [x] GitHub Actions pipeline (✅ Fixed audit8 — root `.github/workflows/ci.yml` now runs the Next.js app: bun install, prisma validate/generate/migrate, typecheck, lint, vitest against a Postgres service container)
+- [x] Automated tests on PR (✅ — vitest with Postgres service)
+- [x] Type checking on PR (✅ — `bun run typecheck`)
+- [x] Linting on PR (✅ — `bun run lint`)
 - [ ] Staging deployment on merge to main
 - [ ] Production deployment on release tag
 

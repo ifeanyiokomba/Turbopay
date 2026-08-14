@@ -13,6 +13,27 @@ import { z } from "zod";
 
 const isBuilding = !!process.env.NEXT_BUILD;
 
+// ── NODE_ENV normalization ──────────────────────────────────────────────
+// `NODE_ENV` may carry a legacy value from the environment (the old SDK used
+// "sandbox", and this repo's shell exports it). A strict throw here would
+// break `next build`, `next dev`, and vitest for anyone with such a value
+// exported. Coerce unknown values to a known one with a loud warning instead
+// — the genuinely critical checks (DATABASE_URL, and the production-only PII /
+// webhook / cron secrets below) remain fail-fast.
+//
+// IMPORTANT: read via BRACKET access. Turbopack statically inlines the
+// dotted form `process.env.NODE_ENV` to "production" at build time (the
+// value seen by build workers), making any runtime check against it dead
+// code while `safeParse(process.env)` below still sees the real value.
+const rawNodeEnv = (process.env as Record<string, string | undefined>)["NODE_ENV"];
+if (rawNodeEnv && !["development", "test", "production"].includes(rawNodeEnv)) {
+  console.warn(
+    `[env] Unknown NODE_ENV "${rawNodeEnv}" — coercing to ${isBuilding ? "production" : "development"}. ` +
+    "Set NODE_ENV=development|test|production explicitly to silence this warning."
+  );
+  (process.env as Record<string, string | undefined>)["NODE_ENV"] = isBuilding ? "production" : "development";
+}
+
 const envSchema = z.object({
   // Database — PostgreSQL in production, SQLite file for local dev.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),

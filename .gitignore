@@ -21,3 +21,7 @@ coverage/
 turbopay-complete-latest/.git
 data/
 AUDIT_REPORT.md
+# AI-agent tooling artifacts + TS build metadata
+.mimocode/
+turbopay-complete-latest/.mimocode/
+*.tsbuildinfo
