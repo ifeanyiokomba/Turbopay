@@ -31,6 +31,7 @@ import { providers } from "@/lib/turbocore/providers/registry";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/turbopay/audit";
 import { reverseEntry } from "@/lib/turbopay/ledger";
+import { transitionState } from "@/lib/turbopay/tx-state";
 import { notify } from "@/lib/turbocore/notifications";
 
 let registered = false;
@@ -94,6 +95,10 @@ async function dispatchEvent(e: { type: string; data: Record<string, unknown> },
           where: { id: tx.id },
           data: { status: "SUCCESS" },
         });
+        // A PENDING transfer held at PROVIDER_CALLED (async provider) is now
+        // confirmed by the webhook — advance the state machine to the terminal
+        // SETTLED state so the sweeper doesn't reconsider it.
+        transitionState(tx.id, "SETTLED").catch(() => null);
         await notify.sendInApp({
           userId: tx.userId,
           type: "TRANSACTION",
@@ -138,6 +143,10 @@ async function dispatchEvent(e: { type: string; data: Record<string, unknown> },
             data: { status: "FAILED" },
           });
         }
+        // The hold was reversed + the row failed via webhook — mark the state
+        // machine terminal REVERSED so it matches the ledger and the sweeper
+        // can never re-process this row.
+        transitionState(tx.id, "REVERSED").catch(() => null);
         await notify.sendInApp({
           userId: tx.userId,
           type: "TRANSACTION",

@@ -1,6 +1,6 @@
 /** Provider Health — with SSRF protection + N+1 query fix. */
 import { db } from "@/lib/db";
-import { assertSafeHealthCheckUrl } from "@/lib/turbocore/config/provider-config";
+import { validateOutboundUrl } from "@/lib/turbopay/ssrf";
 
 export interface ProviderHealthSummary {
   providerConfigId: string; contract: string; providerName: string; displayName: string;
@@ -41,8 +41,12 @@ class ProviderHealthService {
   async runCheck(providerConfigId: string): Promise<{ status: string; latencyMs: number | null; error?: string }> {
     const config = await db.providerConfig.findUnique({ where: { id: providerConfigId } });
     if (!config?.healthCheckUrl) return { status: "unknown", latencyMs: null, error: "No health check URL configured" };
-    // SSRF protection — validate before fetching.
-    assertSafeHealthCheckUrl(config.healthCheckUrl);
+    // SSRF protection — resolve DNS + validate the resolved IP before fetching.
+    // The write-time `assertSafeHealthCheckUrl` check in provider-config.ts only
+    // blocks literal private IPs; resolving here closes the DNS-rebinding gap
+    // where a domain resolves publicly at validation time but to 127.0.0.1 at
+    // fetch time.
+    await validateOutboundUrl(config.healthCheckUrl);
     const start = Date.now();
     try {
       const res = await fetch(config.healthCheckUrl, { method: "GET", signal: AbortSignal.timeout(10000) });

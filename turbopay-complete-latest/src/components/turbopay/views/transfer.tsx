@@ -70,7 +70,7 @@ export function TransferView() {
   const [saveBen, setSaveBen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
-  const [done, setDone] = React.useState<null | { reference: string; amountKobo: number; recipientName: string; newBalanceKobo: number }>(null);
+  const [done, setDone] = React.useState<null | { reference: string; amountKobo: number; recipientName: string; newBalanceKobo: number; status?: "SUCCESS" | "PENDING" }>(null);
   const [favorites, setFavorites] = React.useState<Set<string>>(new Set());
 
   // Bank transfer fields
@@ -200,7 +200,7 @@ export function TransferView() {
         body.recipientName = recipientName || accountNumber;
       }
 
-      const res = await apiPost<{ reference: string; amountKobo: number; recipientName: string; newBalanceKobo: number }>(
+      const res = await apiPost<{ reference: string; amountKobo: number; recipientName: string; newBalanceKobo: number; status?: "SUCCESS" | "PENDING" }>(
         "/api/transfer",
         body
       );
@@ -208,7 +208,13 @@ export function TransferView() {
       mutateApi("/api/wallet");
       mutateApi("/api/dashboard");
       mutateApi("/api/transactions");
-      toast.success("Transfer successful");
+      // A PENDING provider response (e.g. Paystack async transfer) means the
+      // funds are held until the bank confirms — never report it as success.
+      if (res.status === "PENDING") {
+        toast.info("Transfer is processing — you'll be notified when the bank confirms.");
+      } else {
+        toast.success("Transfer successful");
+      }
     } catch (e: any) {
       if (e?.status === 401) return;
       toast.error(e.message ?? "Transfer failed");
@@ -231,15 +237,20 @@ export function TransferView() {
   };
 
   if (done) {
+    const pending = done.status === "PENDING";
     return (
       <div className="mx-auto max-w-md">
         <Card className="overflow-hidden">
-          <div className="flex flex-col items-center bg-success/10 px-6 py-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/20">
-              <Check className="h-8 w-8 text-success" />
+          <div className={`flex flex-col items-center px-6 py-8 text-center ${pending ? "bg-amber-500/10" : "bg-success/10"}`}>
+            <div className={`flex h-16 w-16 items-center justify-center rounded-full ${pending ? "bg-amber-500/20" : "bg-success/20"}`}>
+              {pending ? <Loader2 className="h-8 w-8 animate-spin text-amber-500" /> : <Check className="h-8 w-8 text-success" />}
             </div>
-            <h2 className="mt-4 text-xl font-bold">Transfer successful</h2>
-            <p className="mt-1 text-sm text-muted-foreground">₦{(done.amountKobo / 100).toLocaleString()} sent to {done.recipientName}</p>
+            <h2 className="mt-4 text-xl font-bold">{pending ? "Transfer processing" : "Transfer successful"}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {pending
+                ? `₦${(done.amountKobo / 100).toLocaleString()} is on its way to ${done.recipientName} — you'll be notified when the bank confirms.`
+                : `₦${(done.amountKobo / 100).toLocaleString()} sent to ${done.recipientName}`}
+            </p>
             <p className="mt-3 text-3xl font-bold tabular-nums">{formatNaira(done.amountKobo)}</p>
           </div>
           <CardContent className="space-y-3 pt-5">

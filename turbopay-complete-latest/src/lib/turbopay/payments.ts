@@ -227,27 +227,36 @@ export async function holdDebit(input: HoldInput): Promise<HoldOutcome> {
  */
 export async function confirmHold(
   transactionId: string,
-  opts: { providerRef?: string | null; sideRowId?: string; sideModel?: "airtimeData" | "billPayment"; extraMetadata?: Record<string, unknown>; outboxEvent?: OutboxEventInput }
+  opts: { providerRef?: string | null; sideRowId?: string; sideModel?: "airtimeData" | "billPayment"; extraMetadata?: Record<string, unknown>; outboxEvent?: OutboxEventInput; status?: "SUCCESS" | "PENDING" }
 ): Promise<void> {
   await db.$transaction(async (tx) => {
     const existing = await tx.transaction.findUnique({ where: { id: transactionId } });
     const meta = existing?.metadata ? JSON.parse(existing.metadata) : {};
     const providerRef = opts.providerRef ?? existing?.providerRef ?? null;
+    // Some providers (e.g. Paystack transfers) return a PENDING status
+    // synchronously and finalize later via webhook. Keep the row PENDING in
+    // that case so a later failure can be reversed/refunded — marking it
+    // SUCCESS here would leave the user debited with no refund path when the
+    // transfer ultimately fails.
+    const status = opts.status ?? "SUCCESS";
     await tx.transaction.update({
       where: { id: transactionId },
       data: {
-        status: "SUCCESS",
+        status,
         providerRef,
         metadata: JSON.stringify({ ...meta, ...opts.extraMetadata, confirmedAt: new Date().toISOString() }),
       },
     });
     // FIX: use `tx` (not `db`) so the side-table update is in the SAME tx.
     // Also update the `reference` field from "PENDING" to the real providerRef.
+    // The side-table status must mirror the Transaction status: a PENDING
+    // provider response keeps the side row PENDING too (a later failure
+    // webhook flips both FAILED) — only a confirmed SUCCESS flips it here.
     if (opts.sideRowId && opts.sideModel === "airtimeData") {
-      await tx.airtimeDataPurchase.updateMany({ where: { id: opts.sideRowId }, data: { status: "SUCCESS", reference: providerRef ?? "SUCCESS" } });
+      await tx.airtimeDataPurchase.updateMany({ where: { id: opts.sideRowId }, data: { status, reference: providerRef ?? status } });
     }
     if (opts.sideRowId && opts.sideModel === "billPayment") {
-      await tx.billPayment.updateMany({ where: { id: opts.sideRowId }, data: { status: "SUCCESS", reference: providerRef ?? "SUCCESS" } });
+      await tx.billPayment.updateMany({ where: { id: opts.sideRowId }, data: { status, reference: providerRef ?? status } });
     }
     // ── Transactional outbox: write the event row INSIDE this tx so the
     //    event is persisted iff the tx commits. The cron worker picks it
@@ -320,7 +329,7 @@ export async function reverseHold(
  * payment succeeds.
  */
 export async function executeProviderDebit(input: HoldInput & {
-  providerCall: () => Promise<{ providerRef: string; extra?: Record<string, unknown> }>;
+  providerCall: () => Promise<{ providerRef: string; extra?: Record<string, unknown>; finalStatus?: "SUCCESS" | "PENDING" }>;
   sideModel?: "airtimeData" | "billPayment";
   /**
    * Optional outbox event to write INSIDE the confirm transaction. The
@@ -328,7 +337,7 @@ export async function executeProviderDebit(input: HoldInput & {
    * caller supplies `aggregateType`, `eventType`, and `payload`.
    */
   outboxEvent?: Omit<OutboxEventInput, "aggregateId">;
-}): Promise<{ transactionId: string; reference: string; providerRef: string; newBalanceKobo: number }> {
+}): Promise<{ transactionId: string; reference: string; providerRef: string; newBalanceKobo: number; status: "SUCCESS" | "PENDING" }> {
   const hold = await holdDebit({
     userId: input.userId,
     walletId: input.walletId,
@@ -368,6 +377,10 @@ export async function executeProviderDebit(input: HoldInput & {
 
   try {
     const result = await input.providerCall();
+    // A provider that returns PENDING synchronously (e.g. Paystack transfers)
+    // will finalize via webhook; the confirm transaction keeps the row PENDING
+    // so a later failure webhook can reverse + refund the hold.
+    const finalStatus: "SUCCESS" | "PENDING" = result.finalStatus === "PENDING" ? "PENDING" : "SUCCESS";
     // Build the full outbox event with the transaction ID filled in.
     const outboxEvent: OutboxEventInput | undefined = input.outboxEvent
       ? { ...input.outboxEvent, aggregateId: hold.transactionId }
@@ -378,11 +391,16 @@ export async function executeProviderDebit(input: HoldInput & {
       sideModel: input.sideModel,
       extraMetadata: result.extra,
       outboxEvent,
+      status: finalStatus,
     });
-    // ── State machine: provider call succeeded, hold confirmed. ──────
-    await transitionState(hold.transactionId, "SETTLED").catch(() => null);
+    // ── State machine: only a confirmed-SUCCESS hold is terminal SETTLED. ──
+    // A PENDING hold stays at PROVIDER_CALLED — the sweeper + settlement
+    // worker then reconcile it against the provider's real status.
+    if (finalStatus === "SUCCESS") {
+      await transitionState(hold.transactionId, "SETTLED").catch(() => null);
+    }
     const ref = await db.transaction.findUnique({ where: { id: hold.transactionId }, select: { reference: true } });
-    return { transactionId: hold.transactionId, reference: ref!.reference, providerRef: result.providerRef, newBalanceKobo: hold.balanceAfterKobo };
+    return { transactionId: hold.transactionId, reference: ref!.reference, providerRef: result.providerRef, newBalanceKobo: hold.balanceAfterKobo, status: finalStatus };
   } catch (e: any) {
     await reverseHold(hold.transactionId, hold.ledgerEntryId, e?.message ?? "PROVIDER_ERROR", {
       sideRowId: hold.sideRowId,

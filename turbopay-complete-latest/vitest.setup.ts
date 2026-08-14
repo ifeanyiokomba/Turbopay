@@ -1,57 +1,53 @@
 /**
- * Vitest setup — loads .env.local then .env before any test module imports.
- * Without this, env.ts validation fails because DATABASE_URL is undefined.
- * .env.local is loaded first (contains DATABASE_URL and secrets); .env is
- * loaded second as a fallback (overridden by .env.local values).
+ * Vitest setup — test-database resolution + SAFETY GUARD.
  *
- * IMPORTANT: Appends ?pgbouncer=true to DATABASE_URL when using Supabase's
- * connection pooler. Supabase uses PgBouncer in transaction mode, which
- * conflicts with Prisma's prepared statements (error: "prepared statement
- * already exists"). The pgbouncer=true flag tells Prisma to use simple
- * queries instead of prepared statements.
+ * Resolution order (FIRST WIN WINS — dotenv never overrides an already-set
+ * process.env key):
+ *   1. `DATABASE_URL_TEST` already in the environment (CI sets this, or the
+ *      developer exports it).
+ *   2. `DATABASE_URL_TEST` from `.env.test` (written by
+ *      `scripts/test-db/setup.sh`, which provisions an isolated local
+ *      PostgreSQL cluster on port 5433).
+ *   3. A `DATABASE_URL` that points at a LOCALHOST host (e.g. a CI service
+ *      container) — used as the test URL.
+ *
+ * The test environment NEVER falls back to a remote `DATABASE_URL` (the
+ * production Supabase pooler from `.env.local`). If only a remote URL is
+ * available, setup FAILS FAST with instructions instead of silently running
+ * tests against production/staging data.
+ *
+ * Safety: destructive test operations (deleteMany, truncation, migrations,
+ * resets) are only permitted against a host listed in TEST_DB_ALLOWED_HOSTS.
+ * Anything else aborts the suite before the first test runs.
  */
 import { config } from "dotenv";
 import path from "path";
+import { resolveTestDatabaseUrl, assertSafeTestDatabase } from "@/lib/turbopay/test-safety";
 
 // FORCE test environment BEFORE dotenv loads. If the parent shell exports
 // NODE_ENV (e.g. a legacy SDK value like "sandbox"), env.ts validation
 // rejects it and every test file fails to load. Tests always run as
 // NODE_ENV=test regardless of the shell.
-// NODE_ENV is typed as read-only in @types/node — cast to assign.
 (process.env as Record<string, string | undefined>)["NODE_ENV"] = "test";
 
+// ── Load order matters ───────────────────────────────────────────────────
+// .env.test first (isolated test DB URL), then .env.local (production dev
+// secrets — DATABASE_URL from here is NEVER used for tests), then .env.
+config({ path: path.resolve(__dirname, ".env.test") });
 config({ path: path.resolve(__dirname, ".env.local") });
 config({ path: path.resolve(__dirname, ".env") });
 
-// ─── TEST DATABASE ISOLATION ────────────────────────────────────────────
-// Tests must never run against the production database. The production
-// DATABASE_URL lives in .env.local (a remote Supabase pooler) and would be
-// loaded above. Prefer DATABASE_URL_TEST when the developer/CI provides it;
-// otherwise warn loudly when the resolved URL points at a non-local host.
-const testUrl = process.env.DATABASE_URL_TEST;
-if (testUrl) {
-  process.env.DATABASE_URL = testUrl;
-  if (process.env.DIRECT_URL) process.env.DIRECT_URL = testUrl;
-} else {
-  const host = (() => {
-    try {
-      return new URL(process.env.DATABASE_URL ?? "").hostname;
-    } catch {
-      return "";
-    }
-  })();
-  const isLocal =
-    host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "";
-  if (!isLocal) {
-    console.error(
-      "[vitest] WARNING: DATABASE_URL points at a REMOTE database (" +
-        host +
-        "). Tests may hit non-test data! Set DATABASE_URL_TEST to an isolated test database."
-    );
-  }
-}
+// ── Test database resolution ─────────────────────────────────────────────
+const resolved = resolveTestDatabaseUrl(process.env);
+process.env.DATABASE_URL = resolved.url;
+process.env.DIRECT_URL = resolved.url;
 
-// Fix Supabase PgBouncer + Prisma prepared statement conflict
+// Hard guard: any destructive test operation must target a safe host.
+// Throws before the first test if the resolved URL is not in the allow-list.
+assertSafeTestDatabase({ url: resolved.url, allowRemote: !!process.env.TEST_DB_ALLOW_REMOTE });
+
+// Fix Supabase PgBouncer + Prisma prepared statement conflict (harmless for
+// the local test cluster — Prisma simply uses the simple-query protocol).
 if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("pgbouncer=true")) {
   const separator = process.env.DATABASE_URL.includes("?") ? "&" : "?";
   process.env.DATABASE_URL = `${process.env.DATABASE_URL}${separator}pgbouncer=true`;

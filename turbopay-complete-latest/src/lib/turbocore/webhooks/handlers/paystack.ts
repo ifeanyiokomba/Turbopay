@@ -30,6 +30,12 @@ export const paystackWebhookHandler: WebhookHandler = {
   verifySignature: hmacVerifierFromDb("paystack", "x-paystack-signature", "PAYSTACK_SECRET_KEY"),
   extractProviderRef: (payload) => {
     const p = payload as any;
+    // For transfer events, prefer `transfer_code` — the adapter stores it as
+    // the transaction's providerRef (data.reference is the client-side
+    // reference we passed at creation and would NOT match the stored row).
+    if (typeof p?.event === "string" && p.event.startsWith("transfer.")) {
+      return p?.data?.transfer_code ?? p?.data?.reference ?? p?.data?.id ?? p?.data?.transfer_reference ?? null;
+    }
     return p?.data?.reference ?? p?.data?.id ?? p?.data?.transfer_reference ?? null;
   },
   normalize: (payload, _headers) => {
@@ -40,11 +46,16 @@ export const paystackWebhookHandler: WebhookHandler = {
     if (!event || !ref) return [];
 
     // ─── Transfer Events ────────────────────────────────────────
+    // Use `transfer_code` as the providerRef: the adapter stores it on the
+    // Transaction row, so the dispatcher's { providerRef, provider } lookup
+    // matches. Without this, a webhook-finalized async transfer could never
+    // be found and would stay PENDING forever.
+    const transferRef = event.startsWith("transfer.") ? (data.transfer_code ?? ref) : ref;
     if (event === "transfer.success") {
       return [{
         type: "TRANSFER_COMPLETED",
         data: {
-          providerRef: ref,
+          providerRef: transferRef,
           provider: "paystack",
           status: "SUCCESS",
           amountMinor: nairaToKobo(parseFloat(data.amount ?? "0")),
@@ -55,7 +66,7 @@ export const paystackWebhookHandler: WebhookHandler = {
       return [{
         type: "TRANSFER_FAILED",
         data: {
-          providerRef: ref,
+          providerRef: transferRef,
           provider: "paystack",
           status: "FAILED",
           reason: data.fail_reason ?? data.gateway_response ?? "Transfer failed",

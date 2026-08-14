@@ -154,6 +154,13 @@ export interface SendTransferResult {
   newBalanceKobo: number;
   external?: boolean;
   providerRef?: string;
+  /**
+   * "PENDING" when the provider accepted the transfer asynchronously
+   * (e.g. Paystack) — the transaction is held until the webhook finalizes it.
+   * Omitted/"SUCCESS" for fully settled transfers. Clients MUST NOT render a
+   * PENDING transfer as successful.
+   */
+  status?: "SUCCESS" | "PENDING";
 }
 
 // ─── WalletService ─────────────────────────────────────────────────────

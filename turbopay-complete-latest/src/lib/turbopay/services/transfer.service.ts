@@ -403,6 +403,11 @@ class TransferService {
           }
           return {
             providerRef: r.data.providerRef,
+            // Paystack transfers are asynchronous: a PENDING sync response
+            // means the transfer is queued and will finalize via webhook.
+            // Keep the transaction PENDING so a later failure can be
+            // reversed/refunded instead of showing a false SUCCESS.
+            finalStatus: r.data.status === "PENDING" ? ("PENDING" as const) : ("SUCCESS" as const),
             extra: { paystackStatus: r.data.status, external: true, bankCode, accountNumber },
           };
         },
@@ -484,6 +489,7 @@ class TransferService {
       newBalanceKobo: result.newBalanceKobo,
       external: true,
       providerRef: result.providerRef,
+      status: result.status,
     };
     if (idemKey) await completeIdempotency(idemKey, 200, responseBody);
     return responseBody;
