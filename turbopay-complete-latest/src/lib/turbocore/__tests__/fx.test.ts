@@ -214,7 +214,8 @@ describe("FX Engine — snapshot caching", () => {
   it("refreshSnapshot stores a new snapshot row with a future expiresAt", async () => {
     const before = await db.fxRateSnapshot.count({ where: { pair: TEST_PAIR } });
     const snap = await fx.refreshSnapshot(TEST_PAIR);
-    expect(snap.rate).toBeGreaterThan(0);
+    // rate is a Prisma Decimal column — convert like the app does (fx/index.ts).
+    expect(Number(snap.rate)).toBeGreaterThan(0);
     expect(snap.pair).toBe(TEST_PAIR);
     expect(snap.expiresAt.getTime()).toBeGreaterThan(Date.now());
     const after = await db.fxRateSnapshot.count({ where: { pair: TEST_PAIR } });
