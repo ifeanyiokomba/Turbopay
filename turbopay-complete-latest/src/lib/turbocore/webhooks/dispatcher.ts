@@ -97,8 +97,13 @@ async function dispatchEvent(e: { type: string; data: Record<string, unknown> },
         });
         // A PENDING transfer held at PROVIDER_CALLED (async provider) is now
         // confirmed by the webhook — advance the state machine to the terminal
-        // SETTLED state so the sweeper doesn't reconsider it.
-        transitionState(tx.id, "SETTLED").catch(() => null);
+        // SETTLED state so the sweeper doesn't reconsider it. AWAIT it: the
+        // webhook response is the confirmation ack, so the row must be in the
+        // terminal state BEFORE we return 200 (otherwise a client polling right
+        // after the webhook could see PROVIDER_CALLED). transitionState never
+        // throws (all paths are internally try/caught), so this cannot break
+        // the webhook handler.
+        await transitionState(tx.id, "SETTLED");
         await notify.sendInApp({
           userId: tx.userId,
           type: "TRANSACTION",
@@ -145,8 +150,11 @@ async function dispatchEvent(e: { type: string; data: Record<string, unknown> },
         }
         // The hold was reversed + the row failed via webhook — mark the state
         // machine terminal REVERSED so it matches the ledger and the sweeper
-        // can never re-process this row.
-        transitionState(tx.id, "REVERSED").catch(() => null);
+        // can never re-process this row. AWAIT it (transitionState never
+        // throws): the FAILED + REVERSED row must be fully committed before
+        // the webhook returns 200, or a client could observe a FAILED status
+        // with a PROVIDER_CALLED state.
+        await transitionState(tx.id, "REVERSED");
         await notify.sendInApp({
           userId: tx.userId,
           type: "TRANSACTION",
