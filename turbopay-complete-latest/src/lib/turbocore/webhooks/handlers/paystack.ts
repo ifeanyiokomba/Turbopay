@@ -27,7 +27,7 @@ import { nairaToKobo } from "@/lib/turbopay/money";
 
 export const paystackWebhookHandler: WebhookHandler = {
   provider: "paystack",
-  verifySignature: hmacVerifierFromDb("paystack", "x-paystack-signature", "PAYSTACK_SECRET_KEY"),
+  verifySignature: hmacVerifierFromDb("paystack", "x-paystack-signature", "PAYSTACK_SECRET_KEY", "sha512"),
   extractProviderRef: (payload) => {
     const p = payload as any;
     // For transfer events, prefer `transfer_code` — the adapter stores it as

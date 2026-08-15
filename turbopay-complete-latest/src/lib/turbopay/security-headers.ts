@@ -121,6 +121,12 @@ export function getSecurityHeaders(isDev: boolean, nonce?: string): SecurityHead
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",
           },
+          // OWASP cross-origin isolation headers (adapted from Turbo reference)
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
+          // Legacy XSS protection for older browsers
+          { key: "X-XSS-Protection", value: "1; mode=block" },
         ]),
     { key: "Content-Security-Policy", value: csp },
   ];

@@ -24,7 +24,7 @@ import { nairaToKobo } from "@/lib/turbopay/money";
 
 export const monnifyWebhookHandler: WebhookHandler = {
   provider: "monnify",
-  verifySignature: hmacVerifierFromDb("monnify", "monnify-signature", "TURBOPAY_MONNIFY_WEBHOOK_SECRET"),
+  verifySignature: hmacVerifierFromDb("monnify", "monnify-signature", "TURBOPAY_MONNIFY_WEBHOOK_SECRET", "sha512"),
   extractProviderRef: (payload) => {
     const p = (payload as any)?.eventData ?? (payload as any)?.payload ?? payload;
     return p?.transactionReference ?? p?.providerRef ?? p?.reference ?? null;
