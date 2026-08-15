@@ -17,6 +17,7 @@
  * Expected credential keys: `clientId`, `clientSecret`, `baseUrl`.
  */
 
+import { validateOutboundUrl } from "@/lib/turbopay/ssrf";
 import type {
   IWalletFundingProvider,
   WalletFundingInit,
@@ -59,6 +60,7 @@ async function getAccessToken(creds: FlutterwaveCredentials): Promise<string> {
   }
 
   const tokenUrl = "https://idp.flutterwave.com/realms/flutterwave/protocol/openid-connect/token";
+  await validateOutboundUrl(tokenUrl);
   const res = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -95,6 +97,7 @@ async function fwRequest<T>(
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   const accessToken = await getAccessToken(creds);
   const url = `${creds.baseUrl}${path}`;
+  await validateOutboundUrl(url);
   const res = await fetch(url, {
     method,
     headers: {

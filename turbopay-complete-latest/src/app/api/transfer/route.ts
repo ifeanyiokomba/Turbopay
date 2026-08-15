@@ -4,6 +4,7 @@ import { rateLimit } from "@/lib/turbopay/rate-limit";
 import { transferService, ServiceError } from "@/lib/turbopay/services";
 import { DomainError } from "@/lib/turbopay/errors";
 import { randomToken } from "@/lib/turbopay/crypto";
+import { sanitizeString } from "@/lib/turbopay/sanitize";
 import { z } from "zod";
 
 const schema = z
@@ -42,6 +43,15 @@ export async function POST(req: Request) {
     return errorJson(parsed.error.issues[0]?.message ?? "Invalid input", 422, "VALIDATION");
   }
 
+  // Sanitize free-form fields after schema validation.
+  const data = {
+    ...parsed.data,
+    recipient: parsed.data.recipient ? sanitizeString(parsed.data.recipient) : undefined,
+    recipientName: parsed.data.recipientName ? sanitizeString(parsed.data.recipientName) : undefined,
+    bankName: parsed.data.bankName ? sanitizeString(parsed.data.bankName) : undefined,
+    note: parsed.data.note ? sanitizeString(parsed.data.note) : undefined,
+  };
+
   // Per-user rate limit on PIN attempts — brute-force defense.
   const limited = await rateLimit(req, { key: "pin", limit: 10, windowMs: 60_000, scope: "user", userId: user.id });
   if (limited) return limited;
@@ -53,13 +63,13 @@ export async function POST(req: Request) {
   try {
     const result = await transferService.send({
       user,
-      recipient: parsed.data.recipient,
+      recipient: data.recipient,
       accountNumber: parsed.data.accountNumber,
       bankCode: parsed.data.bankCode,
-      bankName: parsed.data.bankName,
-      recipientName: parsed.data.recipientName,
+      bankName: data.bankName,
+      recipientName: data.recipientName,
       amountNaira: parsed.data.amountNaira,
-      note: parsed.data.note,
+      note: data.note,
       saveBeneficiary: parsed.data.saveBeneficiary,
       pin: parsed.data.pin,
       ip: readIp(req.headers),

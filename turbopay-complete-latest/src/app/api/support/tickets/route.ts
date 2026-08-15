@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/turbopay/auth";
 import { support, TICKET_CATEGORIES } from "@/lib/turbocore/support";
 import { errorJson, json } from "@/lib/turbopay/api";
 import { rateLimit } from "@/lib/turbopay/rate-limit";
+import { sanitizeString } from "@/lib/turbopay/sanitize";
 import { z } from "zod";
 
 export async function GET() {
@@ -24,6 +25,16 @@ export async function POST(req: Request) {
   let body; try { body = await req.json(); } catch { return errorJson("Invalid body", 400); }
   const parsed = schema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.issues[0]?.message ?? "Invalid", 422, "VALIDATION");
-  const ticket = await support.createTicket({ ...parsed.data, userId });
+
+  // Sanitize free-form fields after schema validation.
+  const ticketData = {
+    ...parsed.data,
+    fullName: sanitizeString(parsed.data.fullName),
+    subject: sanitizeString(parsed.data.subject),
+    description: sanitizeString(parsed.data.description),
+    ...(parsed.data.subcategory ? { subcategory: sanitizeString(parsed.data.subcategory) } : {}),
+  };
+
+  const ticket = await support.createTicket({ ...ticketData, userId });
   return json({ data: { ticketNumber: ticket.ticketNumber, id: ticket.id, createdAt: ticket.createdAt.toISOString(), estimatedResponseTime: "24 hours" } }, 201);
 }

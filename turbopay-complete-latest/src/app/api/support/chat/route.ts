@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/turbopay/auth";
 import { errorJson, json } from "@/lib/turbopay/api";
+import { sanitizeString } from "@/lib/turbopay/sanitize";
 
 /**
  * GET /api/support/chat — get or create the user's chat conversation.
@@ -62,6 +63,9 @@ export async function POST(req: Request) {
     return errorJson("Message or attachment is required", 400, "VALIDATION");
   }
 
+  // Sanitize the free-form message body.
+  const sanitizedMessage = message?.trim() ? sanitizeString(message.trim()) : "";
+
   // Get or create conversation.
   let conv = await db.chatConversation.findFirst({
     where: { userId: user.id, status: "ACTIVE" },
@@ -79,13 +83,13 @@ export async function POST(req: Request) {
       conversationId: conv.id,
       authorName: user.fullName,
       authorRole: "CUSTOMER",
-      body: message?.trim() || "(attachment)",
+      body: sanitizedMessage || "(attachment)",
       attachments: attachments ? JSON.stringify(attachments) : null,
     },
   });
 
   // Generate AI response.
-  const aiResult = generateAiReply(message?.trim() || "");
+  const aiResult = generateAiReply(sanitizedMessage || "");
 
   // Save the AI response.
   await db.chatMessage.create({

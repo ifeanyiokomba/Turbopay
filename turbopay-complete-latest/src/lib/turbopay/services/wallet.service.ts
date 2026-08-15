@@ -19,6 +19,7 @@ import { notify } from "@/lib/turbocore/notifications";
 import { processFunding } from "@/lib/turbopay/funding";
 import { nairaToKobo } from "@/lib/turbopay/money";
 import { decryptPii } from "@/lib/turbopay/crypto";
+import { fetchSafe } from "@/lib/turbopay/ssrf";
 import { ServiceError } from "./types";
 import type { FundWalletInput, FundWalletResult, GetWalletResult } from "./types";
 
@@ -181,8 +182,8 @@ class WalletService {
     const reference = `tp_paystack_${userId}_${Date.now()}`;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-    // Initialize Paystack transaction.
-    const res = await fetch("https://api.paystack.co/transaction/initialize", {
+    // Initialize Paystack transaction (use fetchSafe for SSRF protection).
+    const res = await fetchSafe("https://api.paystack.co/transaction/initialize", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${secretKey}`,

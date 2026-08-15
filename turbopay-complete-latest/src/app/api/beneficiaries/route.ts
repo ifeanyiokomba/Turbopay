@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/turbopay/auth";
 import { errorJson, json } from "@/lib/turbopay/api";
+import { sanitizeString } from "@/lib/turbopay/sanitize";
 import { z } from "zod";
 
 export async function GET() {
@@ -45,12 +46,20 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.issues[0]?.message ?? "Invalid input", 422, "VALIDATION");
 
+  // Sanitize free-form fields (name, bankName) — accountNumber/bankCode are
+  // regex-validated by Zod so they're safe.
+  const sanitized = {
+    ...parsed.data,
+    name: sanitizeString(parsed.data.name),
+    bankName: sanitizeString(parsed.data.bankName),
+  };
+
   const exists = await db.beneficiary.findFirst({
     where: { userId: user.id, accountNumber: parsed.data.accountNumber },
   });
   if (exists) return errorJson("Beneficiary already saved", 409, "DUPLICATE");
 
-  const b = await db.beneficiary.create({ data: { userId: user.id, ...parsed.data } });
+  const b = await db.beneficiary.create({ data: { userId: user.id, ...sanitized } });
   return json({
     data: { id: b.id, name: b.name, accountNumber: b.accountNumber, bankName: b.bankName, bankCode: b.bankCode, type: b.type },
   });

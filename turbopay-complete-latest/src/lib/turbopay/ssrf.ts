@@ -94,7 +94,7 @@ function parseIpv4Cidr(cidr: string): { ip: number; mask: number } | null {
   const prefix = Number(prefixStr);
   if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) return null;
   const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
-  return { ip: ip & mask, mask };
+  return { ip: (ip & mask) >>> 0, mask };
 }
 
 /** Check if an IPv4 address (as a 32-bit uint) falls in any blocked range. */
