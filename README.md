@@ -8,7 +8,6 @@ Consumer-facing fintech web application — a digital banking platform for every
 
 ```
 turbopay-complete-latest/    # Next.js 16 + React 19 + Prisma + PostgreSQL (THE APP)
-src/                         # Payment orchestration SDK (DEPRECATED — being consolidated)
 ```
 
 **The Next.js app (`turbopay-complete-latest/`) is the single source of truth.**
@@ -25,7 +24,7 @@ src/                         # Payment orchestration SDK (DEPRECATED — being c
 | State | Zustand |
 | Testing | Vitest + Testcontainers |
 | Monitoring | Sentry |
-| Deployment | Vercel + Docker |
+| Deployment | Render (primary), Docker alternative |
 
 ## Getting Started
 
@@ -33,46 +32,42 @@ src/                         # Payment orchestration SDK (DEPRECATED — being c
 cd turbopay-complete-latest
 cp .env.example .env
 # Fill in your DATABASE_URL, JWT_SECRET, and provider keys
-npm install
-npx prisma generate
-npx prisma migrate dev
-npm run dev
+bun install
+bunx prisma generate
+bunx prisma migrate dev
+bun run dev
 ```
 
 ## Running Tests
 
 ```bash
 cd turbopay-complete-latest
-npm test   # auto-provisions an isolated local PostgreSQL and runs vitest
+bun run test   # auto-provisions an isolated local PostgreSQL and runs vitest
 ```
 
-`npm test` provisions a dedicated, isolated PostgreSQL cluster on port 5433
+`bun run test` provisions a dedicated, isolated PostgreSQL cluster on port 5433
 (`.testdb/`, git-ignored) and applies Prisma migrations automatically. Tests
 **never** touch the production/dev/staging database — see
 `turbopay-complete-latest/docs/test-database.md` for full details, including
 how CI provisions its own PostgreSQL service container and how to reset or
 troubleshoot the test database.
 
+## Deployment
 
-## Security
+TurboPay deploys to **Render** via `render.yaml` at the repository root.
 
-See `audit4_src_report.md` for the full security audit. All critical and high severity issues have been fixed:
-- Password hashing: SHA-256 → scrypt
-- JWT_SECRET required (no fallback)
-- CORS restricted to configured origins
-- Rate limiting on all routes
-- Webhook validation enforced
-- Input validation on POST routes
-- TLS/HTTPS support
-- Credential files removed
+```
+render.yaml → rootDir: turbopay-complete-latest
+              buildCommand: bun install --frozen-lockfile && bun run db:generate && bun run build
+              startCommand: bun .next/standalone/server.js
+```
+
+Docker deployment is also supported via `turbopay-complete-latest/Dockerfile`.
 
 ## Documentation
 
-- `research/turbopay-fintech/REPORT.md` — Research-backed strategic plan
-- `STRATEGIC_BUILD_PLAN.md` — 6-phase execution roadmap
-- `IMPROVEMENT_PLAN.md` — Pre-research improvement plan
-- `audit4_src_report.md` — Security audit report
-- `turbopay-complete-latest/docs/` — Architecture, API, security docs
+- `turbopay-complete-latest/docs/` — Architecture, API, security, deployment docs
+- `turbopay-complete-latest/DEPLOYMENT.md` — Deployment guide
 
 ## License
 
