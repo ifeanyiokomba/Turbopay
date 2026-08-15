@@ -680,7 +680,7 @@ function PasswordChecklist({ password }: { password: string }) {
     { label: "One uppercase letter (A-Z)", met: /[A-Z]/.test(password) },
     { label: "One lowercase letter (a-z)", met: /[a-z]/.test(password) },
     { label: "One number (0-9)", met: /[0-9]/.test(password) },
-    { label: "One special character (!@#$%…)", met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) },
+    { label: "One special character (!@#$%…)", met: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password) },
   ];
   const metCount = rules.filter((r) => r.met).length;
 

@@ -13,8 +13,13 @@ research/
 *.pdf
 audit*.md
 plan*.md
+*_PLAN.md
+STRATEGIC_*.md
+SYNC_PLAN.md
+CAPABILITY_MATRIX.md
 PROVIDER_*.md
 UNIFIED_*.md
+c.md
 connection\ string.txt
 .turbo
 coverage/

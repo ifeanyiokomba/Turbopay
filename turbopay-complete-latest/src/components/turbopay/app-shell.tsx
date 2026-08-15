@@ -118,9 +118,7 @@ const BulkPaymentsAdmin = React.lazy(() => import("@/components/turbopay/views/a
 const SecurityComplianceAdmin = React.lazy(() => import("@/components/turbopay/views/admin/security-compliance").then(m => ({ default: m.SecurityComplianceAdmin })));
 import { PinDialogProvider } from "@/components/turbopay/parts/pin-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { Label } from "@/components/ui/label";
-import { Lock } from "lucide-react";
+import { InputOTP, InputOTPGroup } from "@/components/ui/input-otp";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface NavItem {
@@ -311,10 +309,10 @@ export function AppShell() {
   }, [logoutClient]);
 
   // ─── Inactivity timeout — auto-logout after 15 minutes with 2-min warning ───
-  const INACTIVITY_MS = 15 * 60 * 1000; // 15 minutes total
-  const WARNING_MS = 13 * 60 * 1000; // show warning at 13 minutes (2 min before logout)
-  const WARNING_DURATION_S = 120; // 2 minute countdown
   React.useEffect(() => {
+    const INACTIVITY = 15 * 60 * 1000; // 15 minutes total
+    const WARNING = 13 * 60 * 1000; // show warning at 13 minutes (2 min before logout)
+    const COUNTDOWN_S = 120; // 2 minute countdown
     let logoutTimer: ReturnType<typeof setTimeout>;
     let warningTimer: ReturnType<typeof setTimeout>;
     let countdownInterval: ReturnType<typeof setInterval>;
@@ -332,10 +330,10 @@ export function AppShell() {
       // Warning timer — fires at 13 minutes
       warningTimer = setTimeout(() => {
         setShowTimeoutWarning(true);
-        setTimeoutSeconds(WARNING_DURATION_S);
+        setTimeoutSeconds(COUNTDOWN_S);
 
         // Countdown timer — updates every second
-        let remaining = WARNING_DURATION_S;
+        let remaining = COUNTDOWN_S;
         countdownInterval = setInterval(() => {
           remaining -= 1;
           setTimeoutSeconds(remaining);
@@ -347,8 +345,8 @@ export function AppShell() {
         // Logout timer — fires at 15 minutes
         logoutTimer = setTimeout(() => {
           doLogout("You've been signed out due to inactivity");
-        }, INACTIVITY_MS - WARNING_MS);
-      }, WARNING_MS);
+        }, INACTIVITY - WARNING);
+      }, WARNING);
     };
 
     // Reset on user activity
