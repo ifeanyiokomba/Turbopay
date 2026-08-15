@@ -65,7 +65,9 @@
   --popover-foreground: oklch(0.21 0.02 160);
 
   /* Deep emerald */
+  --primary: #16a34a;
   --primary: oklch(0.48 0.13 162);
+  --primary-foreground: #ffffff;
   --primary-foreground: oklch(0.99 0.01 150);
 
   --secondary: oklch(0.96 0.012 150);
@@ -175,6 +177,8 @@
 @layer utilities {
   .tp-grain {
     background-image:
+      radial-gradient(circle at 1px 1px, rgba(22, 163, 74, 0.05) 1px, transparent 0);
+    background-image:
       radial-gradient(circle at 1px 1px, oklch(0.48 0.13 162 / 0.05) 1px, transparent 0);
     background-size: 22px 22px;
   }
@@ -182,10 +186,15 @@
   /* The signature wallet gradient card */
   .tp-wallet-card {
     background:
+      radial-gradient(120% 120% at 0% 0%, #22c55e 0%, #16a34a 45%, #15803d 100%);
+    background:
       radial-gradient(120% 120% at 0% 0%, oklch(0.62 0.14 155) 0%, oklch(0.48 0.13 162) 45%, oklch(0.34 0.09 165) 100%);
+    color: #ffffff;
     color: oklch(0.99 0.01 150);
   }
   .dark .tp-wallet-card {
+    background:
+      radial-gradient(120% 120% at 0% 0%, #166534 0%, #14532d 50%, #0f3d23 100%);
     background:
       radial-gradient(120% 120% at 0% 0%, oklch(0.42 0.1 162) 0%, oklch(0.32 0.08 165) 50%, oklch(0.22 0.05 165) 100%);
   }

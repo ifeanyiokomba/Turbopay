@@ -53,10 +53,10 @@ export function Logo({ size = 40, className, ...props }: LogoProps) {
   );
 }
 
-export function Wordmark({ className }: { className?: string }) {
+export function Wordmark({ className, light }: { className?: string; light?: boolean }) {
   return (
     <span className={cn("font-semibold tracking-tight", className)}>
-      Turbo<span className="text-primary">pay</span>
+      Turbo<span className={light ? "text-white" : "text-primary"}>pay</span>
     </span>
   );
 }

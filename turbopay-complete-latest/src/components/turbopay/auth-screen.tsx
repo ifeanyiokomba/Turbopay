@@ -150,7 +150,7 @@ export function AuthScreen({ onBack, initialTab = "login" }: { onBack?: () => vo
         <div className="tp-grain absolute inset-0 opacity-30" />
         <div className="relative flex items-center gap-2">
           <Logo size={40} />
-          <Wordmark className="text-xl" />
+          <Wordmark className="text-xl" light />
         </div>
         <div className="relative">
           <h2 className="max-w-md text-3xl font-bold leading-tight tracking-tight">
