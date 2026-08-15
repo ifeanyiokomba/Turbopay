@@ -5,6 +5,7 @@ dist/
 .env.production
 *.log
 .DS_Store
+frontend/
 turbopay-complete-latest/node_modules/
 turbopay-complete-latest/.next/
 turbopay-complete-latest/dist/
