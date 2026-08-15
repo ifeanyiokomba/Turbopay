@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { validateOrigin } from "@/lib/turbopay/csrf";
 import { buildCsp } from "@/lib/turbopay/security-headers";
 import { generateNonce, CSP_NONCE_COOKIE } from "@/lib/turbopay/nonce";
+import { generateCorrelationId, extractCorrelationId } from "@/lib/turbocore/correlation";
 
 /**
  * PROXY — enforces session presence on protected routes + CSRF origin
@@ -95,6 +96,11 @@ export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isDev = process.env.NODE_ENV !== "production";
   const isApi = pathname.startsWith("/api/");
+
+  // ─── Correlation ID ──────────────────────────────────────────────────
+  // Generate or extract a correlation ID for every request. This ID
+  // propagates through the full request lifecycle for end-to-end tracing.
+  const correlationId = extractCorrelationId(req.headers) ?? generateCorrelationId();
 
   // ─── Fast-path: API routes don't need CSP headers ────────────────────
   // CSP only applies to document (HTML) responses. On JSON API responses
@@ -201,12 +207,15 @@ export default function proxy(req: NextRequest) {
 
   // ─── CSP + nonce — only for HTML page responses ─────────────────────
   if (isApi) {
-    // API routes: no CSP, no nonce cookie — pure pass-through
-    return NextResponse.next();
+    // API routes: no CSP, no nonce cookie — pass through with correlation ID
+    const response = NextResponse.next();
+    response.headers.set("X-Correlation-ID", correlationId);
+    return response;
   }
 
   const nonce = generateNonce();
   const response = NextResponse.next();
+  response.headers.set("X-Correlation-ID", correlationId);
   const csp = buildCsp(nonce, isDev);
   response.headers.set("Content-Security-Policy", csp);
   response.cookies.set(CSP_NONCE_COOKIE, nonce, {
