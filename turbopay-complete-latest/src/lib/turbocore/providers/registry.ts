@@ -108,7 +108,7 @@ function toSnake(s: string): string {
  * Mock adapters are NOT wrapped — there is no ProviderConfig row for a mock
  * so there's nothing to record against.
  */
-function wrapWithHealthTracking<T extends object>(adapter: T, providerConfigId: string): T {
+function wrapWithHealthTracking<T extends object>(adapter: T, providerConfigId: string, providerName: string): T {
   return new Proxy(adapter, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
@@ -117,17 +117,42 @@ function wrapWithHealthTracking<T extends object>(adapter: T, providerConfigId: 
         const start = Date.now();
         try {
           const result = await value.apply(target, args);
+          const latencyMs = Date.now() - start;
+          // Record success in provider routing + metrics (fire-and-forget)
           void import("@/lib/turbocore/config/provider-routing")
             .then(({ providerRouting }) =>
-              providerRouting.recordSuccess(providerConfigId, Date.now() - start).catch(() => {}),
+              providerRouting.recordSuccess(providerConfigId, latencyMs).catch(() => {}),
+            )
+            .catch(() => {});
+          void import("@/lib/turbocore/providers/metrics")
+            .then(({ providerMetrics }) =>
+              providerMetrics.recordRequest(providerName, {
+                success: true,
+                latencyMs,
+                amountKobo: 0,
+                contract: String(prop),
+              }),
             )
             .catch(() => {});
           return result;
         } catch (err) {
+          const latencyMs = Date.now() - start;
           const message = err instanceof Error ? err.message : "provider failure";
+          // Record failure in provider routing + metrics (fire-and-forget)
           void import("@/lib/turbocore/config/provider-routing")
             .then(({ providerRouting }) =>
               providerRouting.recordFailure(providerConfigId, message).catch(() => {}),
+            )
+            .catch(() => {});
+          void import("@/lib/turbocore/providers/metrics")
+            .then(({ providerMetrics }) =>
+              providerMetrics.recordRequest(providerName, {
+                success: false,
+                latencyMs,
+                amountKobo: 0,
+                error: message,
+                contract: String(prop),
+              }),
             )
             .catch(() => {});
           throw err;
@@ -224,6 +249,7 @@ async function resolveAsync<T>(
           const healthWrapped = wrapWithHealthTracking(
             adapter as object,
             route.providerConfigId,
+            route.providerName,
           );
           const breakerWrapped = wrapWithCircuitBreaker(
             healthWrapped,

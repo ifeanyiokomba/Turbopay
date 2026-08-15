@@ -196,6 +196,42 @@ spec:
                       key: CRON_SECRET
 
 ---
+# Alerting — every 5 minutes
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbopay-alerting
+  namespace: turbopay
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 110
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X GET \
+                    -H "Authorization: Bearer ${CRON_SECRET}" \
+                    http://turbopay:3000/api/cron/alerting
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbopay-secrets
+                      key: CRON_SECRET
+
+---
 # Session Cleanup — daily at 3 AM
 apiVersion: batch/v1
 kind: CronJob
