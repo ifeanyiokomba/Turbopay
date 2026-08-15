@@ -3,6 +3,7 @@
  * Implements INotificationProvider. Registered in adapter-factory.ts
  * when the admin configures a "termii" provider in Platform Settings.
  */
+import { jsonRequest } from "./_http";
 import type { INotificationProvider, NotificationPayload, ProviderResult } from "../interfaces";
 
 export class TermiiNotificationProvider implements INotificationProvider {
@@ -26,31 +27,34 @@ export class TermiiNotificationProvider implements INotificationProvider {
   }
 
   private async sendSms(payload: NotificationPayload, message: string) {
-    const res = await fetch("https://api.ng.termii.com/api/sms/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: this.apiKey, to: payload.to, from: this.senderId, sms: message, type: "plain", channel: "dnd" }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      return { ok: false as const, error: { code: "TERMII_ERROR", message: `HTTP ${res.status}: ${body}` } };
+    try {
+      const res = await jsonRequest<{ message_id?: string }>({
+        url: "https://api.ng.termii.com/api/sms/send",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: { api_key: this.apiKey, to: payload.to, from: this.senderId, sms: message, type: "plain", channel: "dnd" },
+        timeoutMs: 10_000,
+      });
+      return { ok: true as const, data: { delivered: true, messageId: res.data.message_id }, providerRef: res.data.message_id };
+    } catch (e: any) {
+      return { ok: false as const, error: { code: "TERMII_ERROR", message: e.message ?? "Termii request failed" } };
     }
-    const data = await res.json() as any;
-    return { ok: true as const, data: { delivered: true, messageId: data.message_id }, providerRef: data.message_id };
   }
 
   private async sendEmail(payload: NotificationPayload, message: string) {
     const subject = this.getEmailSubject(payload.template);
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${this.resendApiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: "TurboPay <noreply@turbopay.okomba.com>", to: [payload.to], subject, text: message }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return { ok: false as const, error: { code: "RESEND_ERROR", message: `HTTP ${res.status}` } };
-    const data = await res.json() as any;
-    return { ok: true as const, data: { delivered: true, messageId: data.id }, providerRef: data.id };
+    try {
+      const res = await jsonRequest<{ id?: string }>({
+        url: "https://api.resend.com/emails",
+        method: "POST",
+        headers: { "Authorization": `Bearer ${this.resendApiKey}`, "Content-Type": "application/json" },
+        body: { from: "TurboPay <noreply@turbopay.okomba.com>", to: [payload.to], subject, text: message },
+        timeoutMs: 10_000,
+      });
+      return { ok: true as const, data: { delivered: true, messageId: res.data.id }, providerRef: res.data.id };
+    } catch (e: any) {
+      return { ok: false as const, error: { code: "RESEND_ERROR", message: e.message ?? "Resend request failed" } };
+    }
   }
 
   private resolveTemplate(template: string, vars: Record<string, string | number>): string {

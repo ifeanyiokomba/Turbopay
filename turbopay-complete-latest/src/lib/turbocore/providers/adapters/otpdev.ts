@@ -9,6 +9,7 @@
  *
  * For verification, use GET /v1/verifications?code={code}&phone={phone}.
  */
+import { jsonRequest } from "./_http";
 import type { INotificationProvider, NotificationPayload, ProviderResult } from "../interfaces";
 
 export class OtpDevNotificationProvider implements INotificationProvider {
@@ -47,23 +48,19 @@ export class OtpDevNotificationProvider implements INotificationProvider {
       body.code_length = 6;
     }
 
-    const res = await fetch("https://api.otp.dev/v1/verifications", {
+    const res = await jsonRequest<{ data?: { message_id?: string }; message_id?: string }>({
+      url: "https://api.otp.dev/v1/verifications",
       method: "POST",
       headers: {
         "X-OTP-Key": this.apiKey,
         "Content-Type": "application/json",
         "Accept": "application/json",
       },
-      body: JSON.stringify({ data: body }),
-      signal: AbortSignal.timeout(10_000),
+      body: { data: body },
+      timeoutMs: 10_000,
     });
 
-    if (!res.ok) {
-      const errBody = await res.text();
-      return { ok: false as const, error: { code: "OTPDEV_ERROR", message: `HTTP ${res.status}: ${errBody}` } };
-    }
-
-    const data = await res.json() as any;
+    const data = res.data;
     // GetOTP returns { data: { message_id: "..." } } (nested)
     const messageId = data?.data?.message_id ?? data?.message_id;
     return {
@@ -88,23 +85,18 @@ export async function verifyOtpDev(
     url.searchParams.set("code", code);
     if (phone) url.searchParams.set("phone", phone);
 
-    const res = await fetch(url.toString(), {
+    const res = await jsonRequest<{ data?: unknown[] }>({
+      url: url.toString(),
       method: "GET",
       headers: {
         "X-OTP-Key": apiKey,
         "Accept": "application/json",
       },
-      signal: AbortSignal.timeout(10_000),
+      timeoutMs: 10_000,
     });
 
-    if (!res.ok) {
-      const errBody = await res.text();
-      return { valid: false, error: `HTTP ${res.status}: ${errBody}` };
-    }
-
-    const data = await res.json() as any;
     // GetOTP returns { data: [...] } — empty array means invalid code
-    const valid = Array.isArray(data.data) && data.data.length > 0;
+    const valid = Array.isArray(res.data.data) && res.data.data.length > 0;
     return { valid };
   } catch (err: any) {
     return { valid: false, error: err.message };

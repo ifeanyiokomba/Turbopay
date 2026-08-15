@@ -8,6 +8,7 @@
  * API Documentation: https://developers.airtel.africa/
  */
 
+import { mobileMoneyRequest } from "./mobile-money-http";
 import type {
   IMobileMoneyProvider,
   MobileMoneyCollectionInput,
@@ -44,7 +45,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
         ? "https://openapi.airtel.africa" 
         : "https://openapi.airtel.africa";
 
-      const response = await fetch(`${baseUrl}/auth/oauth2/token`, {
+      const res = await mobileMoneyRequest<{ access_token?: string; expires_in?: number }>({
+        url: `${baseUrl}/auth/oauth2/token`,
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -53,15 +55,11 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
           grant_type: "client_credentials",
           client_id: this.config.clientId,
           client_secret: this.config.clientSecret,
-        }),
+        }).toString(),
       });
 
-      if (!response.ok) {
-        throw new Error(`Airtel Money authentication failed: ${response.status}`);
-      }
-
-      const data = await response.json() as any;
-      this.accessToken = data.access_token;
+      const data = res.data;
+      this.accessToken = data.access_token ?? null;
       this.tokenExpiry = new Date(Date.now() + (data.expires_in || 3600) * 1000);
     } catch (error) {
       console.error("[AirtelMoney] Authentication failed:", error);
@@ -102,7 +100,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/standard/v1/payments`, {
+      const res = await mobileMoneyRequest<Record<string, unknown>>({
+        url: `${baseUrl}/standard/v1/payments`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -110,7 +109,7 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
           "X-Currency": input.currency,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           transaction: {
             amount: (input.amountMinor / 100).toString(),
             country: input.country,
@@ -120,19 +119,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
           subscriber: {
             mobileNumber: input.phoneNumber.replace("+", ""),
           },
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.code || "COLLECTION_FAILED",
-            message: errorData.message || `Collection failed: ${response.status}`,
-          },
-        };
-      }
 
       return {
         ok: true,
@@ -169,7 +157,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/standard/v1/disbursements`, {
+      const res = await mobileMoneyRequest<Record<string, unknown>>({
+        url: `${baseUrl}/standard/v1/disbursements`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -177,7 +166,7 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
           "X-Currency": input.currency,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           transaction: {
             amount: (input.amountMinor / 100).toString(),
             country: input.country,
@@ -187,19 +176,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
           subscriber: {
             mobileNumber: input.phoneNumber.replace("+", ""),
           },
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.code || "DISBURSEMENT_FAILED",
-            message: errorData.message || `Disbursement failed: ${response.status}`,
-          },
-        };
-      }
 
       return {
         ok: true,
@@ -236,7 +214,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/standard/v1/payments/${providerRef}`, {
+      const res = await mobileMoneyRequest<{ transaction?: { status?: string; amount?: string; createdAt?: string }; subscriber?: { mobileNumber?: string } }>({
+        url: `${baseUrl}/standard/v1/payments/${providerRef}`,
         method: "GET",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -245,18 +224,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
         },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "STATUS_CHECK_FAILED",
-            message: `Status check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
-      const status = this.mapStatus(data.transaction?.status);
+      const data = res.data;
+      const status = this.mapStatus(data.transaction?.status ?? "");
 
       return {
         ok: true,
@@ -293,7 +262,8 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/standard/v1/user/balance`, {
+      const res = await mobileMoneyRequest<{ balance?: string }>({
+        url: `${baseUrl}/standard/v1/user/balance`,
         method: "GET",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -302,17 +272,7 @@ export class AirtelMoneyAdapter implements IMobileMoneyProvider {
         },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "BALANCE_CHECK_FAILED",
-            message: `Balance check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,

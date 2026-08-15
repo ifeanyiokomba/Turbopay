@@ -8,6 +8,7 @@
  * API Documentation: https://developer.safaricom.co.ke/APIs
  */
 
+import { mobileMoneyRequest } from "./mobile-money-http";
 import type {
   IMobileMoneyProvider,
   MobileMoneyCollectionInput,
@@ -44,19 +45,16 @@ export class MPesaAdapter implements IMobileMoneyProvider {
         ? "https://api.safaricom.co.ke" 
         : "https://sandbox.safaricom.co.ke";
 
-      const response = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+      const res = await mobileMoneyRequest<{ access_token?: string; expires_in?: number }>({
+        url: `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
         method: "GET",
         headers: {
           "Authorization": `Basic ${Buffer.from(`${this.config.consumerKey}:${this.config.consumerSecret}`).toString("base64")}`,
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`M-Pesa authentication failed: ${response.status}`);
-      }
-
-      const data = await response.json() as any;
-      this.accessToken = data.access_token;
+      const data = res.data;
+      this.accessToken = data.access_token ?? null;
       this.tokenExpiry = new Date(Date.now() + (data.expires_in || 3600) * 1000);
     } catch (error) {
       console.error("[MPesa] Authentication failed:", error);
@@ -118,13 +116,14 @@ export class MPesaAdapter implements IMobileMoneyProvider {
       const accessToken = await this.getAccessToken();
       const password = this.generatePassword();
       
-      const response = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
+      const res = await mobileMoneyRequest<{ CheckoutRequestID?: string; errorCode?: string; errorMessage?: string }>({
+        url: `${baseUrl}/mpesa/stkpush/v1/processrequest`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           BusinessShortCode: this.config.businessShortCode,
           Password: password,
           Timestamp: this.getPasswordTimestamp(),
@@ -136,21 +135,10 @@ export class MPesaAdapter implements IMobileMoneyProvider {
           CallBackURL: this.config.webhookUrl || "",
           AccountReference: input.reference,
           TransactionDesc: input.description || "Payment to TurboPay",
-        }),
+        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.errorCode || "COLLECTION_FAILED",
-            message: errorData.errorMessage || `Collection failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,
@@ -188,13 +176,14 @@ export class MPesaAdapter implements IMobileMoneyProvider {
       const accessToken = await this.getAccessToken();
       const password = this.generatePassword();
       
-      const response = await fetch(`${baseUrl}/mpesa/b2c/v1/paymentrequest`, {
+      const res = await mobileMoneyRequest<{ ConversationID?: string; errorCode?: string; errorMessage?: string }>({
+        url: `${baseUrl}/mpesa/b2c/v1/paymentrequest`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           InitiatorName: "turbopay",
           SecurityCredential: password,
           CommandID: "BusinessPayment",
@@ -205,21 +194,10 @@ export class MPesaAdapter implements IMobileMoneyProvider {
           QueueTimeOutURL: this.config.webhookUrl || "",
           ResultURL: this.config.webhookUrl || "",
           Occasion: input.reference,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.errorCode || "DISBURSEMENT_FAILED",
-            message: errorData.errorMessage || `Disbursement failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,
@@ -256,33 +234,24 @@ export class MPesaAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/mpesa/transactionstatus/v1/query`, {
+      const res = await mobileMoneyRequest<{ ResponseCode?: string }>({
+        url: `${baseUrl}/mpesa/transactionstatus/v1/query`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           Initiator: "turbopay",
           SecurityCredential: this.generatePassword(),
           CommandID: "TransactionStatusQuery",
           TransactionID: providerRef,
           OriginatorConversationID: providerRef,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "STATUS_CHECK_FAILED",
-            message: `Status check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
-      const status = this.mapStatus(data.ResponseCode);
+      const data = res.data;
+      const status = this.mapStatus(data.ResponseCode ?? "");
 
       return {
         ok: true,
@@ -319,30 +288,21 @@ export class MPesaAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/mpesa/accountbalance/v1/query`, {
+      const res = await mobileMoneyRequest<Record<string, unknown>>({
+        url: `${baseUrl}/mpesa/accountbalance/v1/query`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           Initiator: "turbopay",
           SecurityCredential: this.generatePassword(),
           CommandID: "AccountBalance",
-        }),
+        },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "BALANCE_CHECK_FAILED",
-            message: `Balance check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,

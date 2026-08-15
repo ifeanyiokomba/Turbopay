@@ -8,6 +8,7 @@
  * API Documentation: https://developer.paga.com/
  */
 
+import { mobileMoneyRequest } from "./mobile-money-http";
 import type {
   IMobileMoneyProvider,
   MobileMoneyCollectionInput,
@@ -45,7 +46,8 @@ export class PagaAdapter implements IMobileMoneyProvider {
         ? "https://www.paga.com" 
         : "https://test.paga.com";
 
-      const response = await fetch(`${baseUrl}/api/v1/health`, {
+      const res = await mobileMoneyRequest({
+        url: `${baseUrl}/api/v1/health`,
         method: "GET",
         headers: {
           "Authorization": `PAGA_API_KEY ${this.apiKey}`,
@@ -53,7 +55,7 @@ export class PagaAdapter implements IMobileMoneyProvider {
         },
       });
 
-      return { healthy: response.ok, latencyMs: Date.now() - start };
+      return { healthy: res.status >= 200 && res.status < 300, latencyMs: Date.now() - start };
     } catch (error) {
       return { 
         healthy: false, 
@@ -73,34 +75,24 @@ export class PagaAdapter implements IMobileMoneyProvider {
         ? "https://www.paga.com" 
         : "https://test.paga.com";
 
-      const response = await fetch(`${baseUrl}/api/v1/merchant/collect`, {
+      const res = await mobileMoneyRequest<{ transactionId?: string }>({
+        url: `${baseUrl}/api/v1/merchant/collect`,
         method: "POST",
         headers: {
           "Authorization": `PAGA_API_KEY ${this.apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           amount: input.amountMinor / 100,
           currency: input.currency,
           phoneNumber: input.phoneNumber.replace("+", ""),
           reference: input.reference,
           description: input.description || "Payment to TurboPay",
           merchantId: this.config.merchantId,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.code || "COLLECTION_FAILED",
-            message: errorData.message || `Collection failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,
@@ -135,34 +127,24 @@ export class PagaAdapter implements IMobileMoneyProvider {
         ? "https://www.paga.com" 
         : "https://test.paga.com";
 
-      const response = await fetch(`${baseUrl}/api/v1/merchant/disburse`, {
+      const res = await mobileMoneyRequest<{ transactionId?: string }>({
+        url: `${baseUrl}/api/v1/merchant/disburse`,
         method: "POST",
         headers: {
           "Authorization": `PAGA_API_KEY ${this.apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           amount: input.amountMinor / 100,
           currency: input.currency,
           phoneNumber: input.phoneNumber.replace("+", ""),
           reference: input.reference,
           description: input.description || "Transfer from TurboPay",
           merchantId: this.config.merchantId,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.code || "DISBURSEMENT_FAILED",
-            message: errorData.message || `Disbursement failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,
@@ -197,7 +179,8 @@ export class PagaAdapter implements IMobileMoneyProvider {
         ? "https://www.paga.com" 
         : "https://test.paga.com";
 
-      const response = await fetch(`${baseUrl}/api/v1/merchant/transaction/${providerRef}`, {
+      const res = await mobileMoneyRequest<{ status?: string; amount?: number; phoneNumber?: string; transactionDate?: string }>({
+        url: `${baseUrl}/api/v1/merchant/transaction/${providerRef}`,
         method: "GET",
         headers: {
           "Authorization": `PAGA_API_KEY ${this.apiKey}`,
@@ -205,18 +188,8 @@ export class PagaAdapter implements IMobileMoneyProvider {
         },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "STATUS_CHECK_FAILED",
-            message: `Status check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
-      const status = this.mapStatus(data.status);
+      const data = res.data;
+      const status = this.mapStatus(data.status ?? "");
 
       return {
         ok: true,
@@ -251,7 +224,8 @@ export class PagaAdapter implements IMobileMoneyProvider {
         ? "https://www.paga.com" 
         : "https://test.paga.com";
 
-      const response = await fetch(`${baseUrl}/api/v1/merchant/balance`, {
+      const res = await mobileMoneyRequest<{ balance?: number }>({
+        url: `${baseUrl}/api/v1/merchant/balance`,
         method: "GET",
         headers: {
           "Authorization": `PAGA_API_KEY ${this.apiKey}`,
@@ -259,17 +233,7 @@ export class PagaAdapter implements IMobileMoneyProvider {
         },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "BALANCE_CHECK_FAILED",
-            message: `Balance check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,

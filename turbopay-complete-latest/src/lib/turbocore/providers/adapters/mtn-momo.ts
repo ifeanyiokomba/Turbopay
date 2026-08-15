@@ -8,6 +8,7 @@
  * API Documentation: https://momodeveloper.mtn.com/api-documentation
  */
 
+import { mobileMoneyRequest } from "./mobile-money-http";
 import type {
   IMobileMoneyProvider,
   MobileMoneyCollectionInput,
@@ -44,7 +45,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
         ? "https://proxy.momoapi.mtn.com" 
         : "https://sandbox.momodeveloper.mtn.com";
 
-      const response = await fetch(`${baseUrl}/collection/token/`, {
+      const res = await mobileMoneyRequest<{ access_token?: string; expires_in?: number }>({
+        url: `${baseUrl}/collection/token/`,
         method: "POST",
         headers: {
           "Authorization": `Basic ${Buffer.from(`${this.config.apiUser}:${this.config.apiKey}`).toString("base64")}`,
@@ -52,12 +54,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`MTN MoMo authentication failed: ${response.status}`);
-      }
-
-      const data = await response.json() as any;
-      this.accessToken = data.access_token;
+      const data = res.data;
+      this.accessToken = data.access_token ?? null;
       this.tokenExpiry = new Date(Date.now() + (data.expires_in || 3600) * 1000);
     } catch (error) {
       console.error("[MtnMomo] Authentication failed:", error);
@@ -98,7 +96,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/collection/v1_0/requesttopay`, {
+      const res = await mobileMoneyRequest<Record<string, unknown>>({
+        url: `${baseUrl}/collection/v1_0/requesttopay`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -107,7 +106,7 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
           "Ocp-Apim-Subscription-Key": this.config.subscriptionKey || "",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           amount: (input.amountMinor / 100).toString(),
           currency: input.currency,
           externalId: input.reference,
@@ -117,19 +116,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
           },
           payerMessage: input.description || "Payment to TurboPay",
           payeeNote: `TurboPay collection: ${input.reference}`,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.code || "COLLECTION_FAILED",
-            message: errorData.message || `Collection failed: ${response.status}`,
-          },
-        };
-      }
 
       return {
         ok: true,
@@ -166,7 +154,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/disbursement/v1_0/transfer`, {
+      const res = await mobileMoneyRequest<Record<string, unknown>>({
+        url: `${baseUrl}/disbursement/v1_0/transfer`,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -175,7 +164,7 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
           "Ocp-Apim-Subscription-Key": this.config.subscriptionKey || "",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: {
           amount: (input.amountMinor / 100).toString(),
           currency: input.currency,
           externalId: input.reference,
@@ -185,19 +174,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
           },
           payerMessage: input.description || "Transfer from TurboPay",
           payeeNote: `TurboPay transfer: ${input.reference}`,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json() as any;
-        return {
-          ok: false,
-          error: {
-            code: errorData.code || "DISBURSEMENT_FAILED",
-            message: errorData.message || `Disbursement failed: ${response.status}`,
-          },
-        };
-      }
 
       return {
         ok: true,
@@ -234,7 +212,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/collection/v1_0/requesttopay/${providerRef}`, {
+      const res = await mobileMoneyRequest<Record<string, unknown>>({
+        url: `${baseUrl}/collection/v1_0/requesttopay/${providerRef}`,
         method: "GET",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -243,28 +222,18 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
         },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "STATUS_CHECK_FAILED",
-            message: `Status check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
-      const status = this.mapStatus(data.status);
+      const data = res.data;
+      const status = this.mapStatus(String(data.status ?? ""));
 
       return {
         ok: true,
         data: {
           providerRef,
           status,
-          amountMinor: Math.round(parseFloat(data.amount || "0") * 100),
-          currency: data.currency || "NGN",
-          phoneNumber: data.payer?.partyId || "",
-          transactionDate: new Date(data.reason || Date.now()),
+          amountMinor: Math.round(parseFloat(String(data.amount ?? "0")) * 100),
+          currency: String(data.currency ?? "NGN") as Currency,
+          phoneNumber: String((data.payer as any)?.partyId ?? ""),
+          transactionDate: new Date(String(data.reason ?? Date.now())),
         },
         providerRef,
       };
@@ -291,7 +260,8 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
 
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${baseUrl}/collection/v1_0/account/balance`, {
+      const res = await mobileMoneyRequest<{ availableBalance?: string }>({
+        url: `${baseUrl}/collection/v1_0/account/balance`,
         method: "GET",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -300,17 +270,7 @@ export class MtnMomoAdapter implements IMobileMoneyProvider {
         },
       });
 
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: {
-            code: "BALANCE_CHECK_FAILED",
-            message: `Balance check failed: ${response.status}`,
-          },
-        };
-      }
-
-      const data = await response.json() as any;
+      const data = res.data;
 
       return {
         ok: true,
