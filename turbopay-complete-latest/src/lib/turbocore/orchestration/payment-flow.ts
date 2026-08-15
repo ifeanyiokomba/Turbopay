@@ -34,6 +34,7 @@ import { getCircuitBreaker } from "@/lib/turbocore/providers/circuit-breaker";
 import { audit } from "@/lib/turbopay/audit";
 import { db } from "@/lib/db";
 import { ProviderFeatureUnavailable } from "@/lib/turbopay/errors";
+import { recordProviderRequest } from "@/lib/turbocore/observability/transaction-events";
 import type {
   IWalletFundingProvider,
   ILocalTransferProvider,
@@ -242,6 +243,17 @@ class PaymentFlowService {
         await breaker.execute(() => Promise.reject(error));
       } catch { /* ignore */ }
 
+      // Record provider request event (fire-and-forget)
+      void recordProviderRequest({
+        transactionId: request.reference,
+        provider: decision.selectedProviderName,
+        contract: "walletFunding",
+        correlationId: request.reference,
+        success: false,
+        latencyMs: Date.now() - startTime,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+
       // Audit the failure
       await audit({
         userId: request.userId,
@@ -283,7 +295,19 @@ class PaymentFlowService {
       await breaker.execute(() => Promise.resolve());
     } catch { /* ignore */ }
 
-    // 5. Audit the success
+    // 5. Record provider request event (fire-and-forget)
+    void recordProviderRequest({
+      transactionId: request.reference,
+      provider: decision.selectedProviderName,
+      providerRef: result.providerRef,
+      contract: "walletFunding",
+      correlationId: request.reference,
+      success: result.ok,
+      latencyMs: Date.now() - startTime,
+      error: result.ok ? undefined : result.error?.message,
+    });
+
+    // 6. Audit the success
     await audit({
       userId: request.userId,
       action: "COLLECTION_INITIATED",
@@ -411,6 +435,17 @@ class PaymentFlowService {
       try {
         await breaker.execute(() => Promise.reject(error));
       } catch { /* ignore */ }
+
+      // Record provider request event (fire-and-forget)
+      void recordProviderRequest({
+        transactionId: request.reference,
+        provider: decision.selectedProviderName,
+        contract: "localTransfer",
+        correlationId: request.reference,
+        success: false,
+        latencyMs: Date.now() - startTime,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
 
       await audit({
         userId: request.userId,
@@ -583,6 +618,17 @@ class PaymentFlowService {
         await breaker.execute(() => Promise.reject(error));
       } catch { /* ignore */ }
 
+      // Record provider request event (fire-and-forget)
+      void recordProviderRequest({
+        transactionId: request.reference,
+        provider: decision.selectedProviderName,
+        contract: "billPayment",
+        correlationId: request.reference,
+        success: false,
+        latencyMs: Date.now() - startTime,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+
       await audit({
         userId: request.userId,
         action: "BILL_PAYMENT_FAILED",
@@ -624,6 +670,16 @@ class PaymentFlowService {
     try {
       await breaker.execute(() => Promise.resolve());
     } catch { /* ignore */ }
+
+    // Record provider request event (fire-and-forget)
+    void recordProviderRequest({
+      transactionId: request.reference,
+      provider: decision.selectedProviderName,
+      contract: "billPayment",
+      correlationId: request.reference,
+      success: true,
+      latencyMs: Date.now() - startTime,
+    });
 
     await audit({
       userId: request.userId,

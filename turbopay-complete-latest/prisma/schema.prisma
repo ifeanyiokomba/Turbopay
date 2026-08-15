@@ -2213,3 +2213,74 @@ model MobileMoneyTransaction {
   @@index([provider, providerRef])
   @@index([reference])
 }
+
+// ============================================================
+// PHASE 1 — OBSERVABILITY & RECONCILIATION MODELS
+// ============================================================
+
+/// Aggregated provider metrics — periodic flush from in-memory counters.
+/// One row per (provider, time window). Retained for 90 days.
+model ProviderMetric {
+  id             String   @id @default(cuid())
+  providerName   String
+  windowStart    DateTime
+  windowEnd      DateTime
+  totalRequests  Int      @default(0)
+  successCount   Int      @default(0)
+  failureCount   Int      @default(0)
+  successRate    Float    @default(0)
+  avgLatencyMs   Int      @default(0)
+  totalVolumeKobo Int     @default(0)
+  metadata       String?  // JSON
+  createdAt      DateTime @default(now())
+
+  @@index([providerName, windowStart])
+  @@index([windowStart])
+  @@index([createdAt])
+}
+
+/// Transaction lifecycle event — every state change for a transaction.
+/// Used by the investigation timeline to reconstruct the full history.
+model TransactionEvent {
+  id             String   @id @default(cuid())
+  transactionId  String
+  eventType      String   // transaction.created | transaction.processing | transaction.pending | transaction.success | transaction.failed | transaction.reversed | provider.requested | provider.succeeded | provider.failed | webhook.received | webhook.processed | ledger.debited | ledger.credited | reconciliation.matched | reconciliation.mismatch
+  eventSource    String?  // api | webhook | cron | system
+  actorId        String?  // userId or null for system events
+  provider       String?
+  providerRef    String?
+  amountKobo     Int?
+  correlationId  String?
+  metadata       String?  // JSON — free-form event details
+  createdAt      DateTime @default(now())
+
+  @@index([transactionId, createdAt])
+  @@index([correlationId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+/// Alert event — generated when a threshold-based condition is detected.
+/// Operators can review, acknowledge, and resolve alerts.
+model AlertEvent {
+  id             String   @id @default(cuid())
+  alertType      String   // provider.degraded | provider.down | stuck_transaction | reconciliation.mismatch | wallet.ledger_inconsistency | high_failure_rate
+  severity       String   // INFO | WARNING | CRITICAL
+  title          String
+  description    String
+  providerName   String?
+  transactionId  String?
+  metadata       String?  // JSON
+  status         String   @default("ACTIVE") // ACTIVE | ACKNOWLEDGED | RESOLVED | DISMISSED
+  acknowledgedBy String?
+  resolvedBy     String?
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, severity])
+  @@index([alertType, createdAt])
+  @@index([providerName])
+  @@index([createdAt])
+}
