@@ -43,9 +43,16 @@ npm run dev
 
 ```bash
 cd turbopay-complete-latest
-# Tests require a PostgreSQL database (set DATABASE_URL in .env)
-npx vitest run
+npm test   # auto-provisions an isolated local PostgreSQL and runs vitest
 ```
+
+`npm test` provisions a dedicated, isolated PostgreSQL cluster on port 5433
+(`.testdb/`, git-ignored) and applies Prisma migrations automatically. Tests
+**never** touch the production/dev/staging database — see
+`turbopay-complete-latest/docs/test-database.md` for full details, including
+how CI provisions its own PostgreSQL service container and how to reset or
+troubleshoot the test database.
+
 
 ## Security
 

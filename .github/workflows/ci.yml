@@ -81,3 +81,9 @@ jobs:
 
       - name: Run tests
         run: bun run test
+
+      - name: Production build
+        # next.config.ts pins NODE_ENV=production + NEXT_BUILD during build, so
+        # the shell's NODE_ENV value (if any) cannot break it, and build-time
+        # secret validation is skipped (Vercel injects secrets at runtime).
+        run: bun run build

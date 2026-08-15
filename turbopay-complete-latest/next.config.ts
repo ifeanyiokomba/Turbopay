@@ -1,6 +1,30 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// ── NODE_ENV normalization ────────────────────────────────────────────────
+// Some developer shells export a legacy NODE_ENV value (e.g. the old SDK's
+// "sandbox"). Next.js rejects any value other than development|test|production
+// during `next build`, which breaks builds for anyone with such a value
+// exported — regardless of what the build script does. Normalize it here,
+// BEFORE Next.js reads it, so builds are deterministic and never depend on
+// the developer's shell environment. "sandbox" is a runtime deployment
+// concern (staging) handled by env.ts at runtime, never a build-time value.
+const rawNodeEnv = (process.env as Record<string, string | undefined>)["NODE_ENV"];
+if (rawNodeEnv && !["development", "test", "production"].includes(rawNodeEnv)) {
+  (process.env as Record<string, string | undefined>)["NODE_ENV"] = "production";
+}
+
+// Mark the process as a build so env.ts skips production-only runtime secret
+// validation (TURBOPAY_MONNIFY_WEBHOOK_SECRET / CRON_SECRET are required only
+// at runtime, where Vercel injects them). env.ts looks for NEXT_BUILD; Next.js
+// does not reliably set it in page-data-collection workers, so set it here —
+// next.config.ts is loaded before any app module evaluates, and child workers
+// inherit the parent's env. Guard on argv so `next start` / `next dev` (runtime)
+// keep the strict production validation in env.ts.
+if (process.argv.some((a) => a.endsWith("build"))) {
+  (process.env as Record<string, string | undefined>)["NEXT_BUILD"] = "1";
+}
+
 /**
  * HTTP security headers — applied to every route via next.config.ts.
  * CSP is intentionally OMITTED here — it is set dynamically by

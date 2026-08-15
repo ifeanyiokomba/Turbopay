@@ -47,14 +47,18 @@ if [ -n "${DATABASE_URL_TEST:-}" ]; then
 fi
 
 # ── 1. Reuse a LOCALHOST DATABASE_URL (CI service container) ─────────────
+# NOTE: the node probes read process.env.DATABASE_URL directly (not a bash
+# variable) — bash vars are NOT exported to child processes, so passing
+# $DB_URL through would always yield empty and the CI service container
+# would never be detected.
 DB_URL="${DATABASE_URL:-}"
 DB_HOST=""
 if [ -n "$DB_URL" ]; then
-  DB_HOST="$(node -e "try{console.log(new URL(process.env.DB_URL).hostname)}catch{console.log('')}" 2>/dev/null || true)"
+  DB_HOST="$(node -e "try{console.log(new URL(process.env.DATABASE_URL).hostname)}catch{console.log('')}" 2>/dev/null || true)"
 fi
 if [ "$DB_HOST" = "localhost" ] || [ "$DB_HOST" = "127.0.0.1" ] || [ "$DB_HOST" = "::1" ]; then
   # TCP reachability probe (node — always available; no psql dependency).
-  PORT_NUM="$(node -e "try{console.log(new URL(process.env.DB_URL).port||'5432')}catch{console.log('')}" 2>/dev/null || true)"
+  PORT_NUM="$(node -e "try{console.log(new URL(process.env.DATABASE_URL).port||'5432')}catch{console.log('')}" 2>/dev/null || true)"
   if node -e "
     const net=require('net');
     const s=net.connect(${PORT_NUM:-5432}, '127.0.0.1');
