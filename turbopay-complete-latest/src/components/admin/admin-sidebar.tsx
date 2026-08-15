@@ -73,6 +73,7 @@ const NAV_SECTIONS = [
   {
     label: "System",
     items: [
+      { href: "/admin/observability", label: "Observability", icon: Activity },
       { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },
       { href: "/admin/feature-flags", label: "Feature Flags", icon: Settings },
       { href: "/admin/settings", label: "Settings", icon: Settings },

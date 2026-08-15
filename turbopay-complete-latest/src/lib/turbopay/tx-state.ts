@@ -157,6 +157,16 @@ export async function transitionState(transactionId: string, newState: TxState):
       severity: "INFO",
       metadata: { transactionId, reference: current.reference, from: fromState, to: newState, status: current.status },
     });
+
+    // Record TransactionEvent for the investigation timeline (fire-and-forget).
+    void import("@/lib/turbocore/observability/transaction-events").then(({ recordTransactionStateChange }) =>
+      recordTransactionStateChange({
+        transactionId,
+        fromState: fromState ?? "UNKNOWN",
+        toState: newState,
+        correlationId: current.reference,
+      })
+    ).catch(() => null);
   } catch (err) {
     // State tracking must NEVER block the financial transaction. Log + swallow.
     void audit({
@@ -235,6 +245,17 @@ export async function markTimeout(transactionId: string): Promise<boolean> {
         reason: "STUCK_TRANSACTION_SWEEPER",
       },
     });
+
+    // Record timeout event for the investigation timeline (fire-and-forget).
+    void import("@/lib/turbocore/observability/transaction-events").then(({ recordTransactionStateChange }) =>
+      recordTransactionStateChange({
+        transactionId,
+        fromState: fromState ?? "UNKNOWN",
+        toState: "TIMEOUT",
+        correlationId: current.reference,
+        metadata: { reason: "STUCK_TRANSACTION_SWEEPER" },
+      })
+    ).catch(() => null);
 
     return true;
   } catch (err) {
